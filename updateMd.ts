@@ -1,5 +1,5 @@
+import * as jdepp from './jdepp';
 import * as mecab from './mecabUnidic';
-import partitionBy from './partitionBy';
 
 const promisify = require('util').promisify;
 const readFile = promisify(require('fs').readFile);
@@ -10,24 +10,6 @@ function addEbisu(block: string[], ebisuInit: string, d?: Date) {
 }
 function checkEbisu(block: string[], ebisuInit: string, d?: Date) {
   if (!block.some(line => line.startsWith(ebisuInit))) { addEbisu(block, ebisuInit, d); }
-}
-function compressMecab(vov: mecab.MaybeMorpheme[][]) {
-  let ret: any[][] = [];
-  for (let v of vov) {
-    ret.push(v.map(o => {
-      return o ? {
-        lt: o.literal,
-        pr: o.pronunciation,
-        lr: o.lemmaReading,
-        lx: o.lemma,
-        po: o.partOfSpeech,
-        it: o.inflectionType,
-        in: o.inflection
-      }
-               : o;
-    }));
-  }
-  return ret;
 }
 function ultraCompressMecab(vov: mecab.MaybeMorpheme[][]) {
   let ret: any[][] = [];
@@ -46,15 +28,20 @@ class Sentence {
   ebisuInit: string = '  - ◊Ebisu' + ebisuVersion + ': ';
   parsed: mecab.MaybeMorpheme[][] = [];
   parsedString = '';
+  tsv = '';
+  rawMecab = '';
   constructor(block: string[], d?: Date) {
     this.block = block;
     checkEbisu(this.block, this.ebisuInit, d);
   }
   async addMecab(): Promise<boolean> {
     let text = this.block[0].split(' ').slice(2).join(' ');
-    let parsed = mecab.parseMecab(text, await mecab.invokeMecab(text.trim()));
+    this.rawMecab = await mecab.invokeMecab(text.trim());
+    let parsed = mecab.parseMecab(text, this.rawMecab);
     this.parsed = parsed;
-    this.parsedString = JSON.stringify(ultraCompressMecab(parsed));
+    let compressed = ultraCompressMecab(parsed);
+    this.parsedString = JSON.stringify(compressed);
+    this.tsv = compressed.map(line => line.map(ent => ent ? ent.split(';').join('\t') : '').join('\n')).join('\n');
     return true;
   }
 }
@@ -99,8 +86,16 @@ if (require.main === module) {
     }
     await Promise.all(sentences.map(s => s.addMecab()));
 
-    console.log(sentences);
-    // console.log(starts.map(x => x + 1));
-    // console.log(ends.map(x => x + 1));
+    for (let s of sentences) {
+      console.log(s.block[0]);
+      let jdeppRaw = await jdepp.invokeJdepp(s.rawMecab);
+      let jdeppSplit = jdepp.parseJdepp('', jdeppRaw);
+      let jdeppChunksizes = jdeppSplit.map(v => v.length - 1);
+      let chunks = s.tsv.trim().split('\n');
+      for (let size of jdeppChunksizes) {
+        console.log(chunks.splice(0, size).join('\n'));
+        console.log('---');
+      }
+    }
   })();
 }
