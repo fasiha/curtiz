@@ -26,9 +26,25 @@ Also we can use `◊Cf` module to explicitly link a sentence to a vocabulary ite
 - 私 は │ 男 が │ 自転車 を │ 盗む の を │ 見 ました 。
   - I saw a man stealing a bicycle (p68, Kamiya, Verb)
 
+- ◊sent 山田は先生にほめられた。
+- ◊sent 昨日から急に寒くなった。
+- ◊sent 雪が降り始めました
+- ◊sent 私は男が自転車を盗むのを見ました。
+
 I could cloze-delete the adjective/adverb/verb-headed bunsetsu, and give the English translation, and potentially a list of lemmas, and ask to fill in the entire agglutinated bunsetsu.
 
-Ok, how does grading work? We could grade each sentence.
+Ok, how does grading work? We could grade each sentence. And we should, but we should have a separte section at the bottom of the file for
+- particles, extracted via a combination of MeCab and Jdepp and JMdict: omitting `supplementary_symbol-period` and `particle-phrase_final` morphemes and picking the remaining `particle`s at the tail-edge of bunsetsu should give mostly "real" particles
+  - JMdict needed to screen things like this?: 急/に split by MeCab-UniDic.
+    - `に	ニ	ダ	だ	auxiliary_verb	auxiliary-da	continuative-change_ni`
+  - ignore `particle-conjunctive`s which are (so far) て/で in conjugated phrases:
+    - 住んでいます -> particle-conjunctive
+    - 見て -> particle-conjunctive
+  - ignore `particle-adverbial` too, these are in conjugated phrases
+    - "たり" in 良かったり
+- verb/adjectival/adverbial phrases' individual morphemes.
+  - Tricky to separate "よさが" e.g., nominalized adjective plus regular particle が, one bunsetsu…
+  - JMdict has よさ/良さ.
 
 - ◊vocab べんごし: lawyer: 弁護士
   - ◊Ebisu1: 20180726.212000Z, 4.4,3.4,5.5. 5.5,6.6,7.7. 8.8,9.9,101.2
@@ -73,3 +89,8 @@ Kawashima, p120
 - ◊sent 見てごらん、この池にコイがたくさんいるよ。
 
 
+
+Adjectivals:
+- ◊sent 景色が良くてたくさん写真をとった。
+- ◊sent あのレストランは良かったり悪かったりする。
+- ◊sent この絵のよさがわからない。
