@@ -3,6 +3,13 @@ import * as mecab from './mecabUnidic';
 
 const promisify = require('util').promisify;
 const readFile = promisify(require('fs').readFile);
+// function* enumerate<T>(v: T[]): IterableIterator<[number, T]> {
+//   for (let n = 0; n < v.length; n++) { yield [n, v[n]]; }
+// }
+function* zip(...arrs: any[][]) {
+  const stop = Math.min(...arrs.map(v => v.length));
+  for (let i = 0; i < stop; i++) { yield arrs.map(v => v[i]); }
+}
 
 const ebisuVersion = '1';
 function addEbisu(block: string[], ebisuInit: string, d?: Date) {
@@ -11,25 +18,20 @@ function addEbisu(block: string[], ebisuInit: string, d?: Date) {
 function checkEbisu(block: string[], ebisuInit: string, d?: Date) {
   if (!block.some(line => line.startsWith(ebisuInit))) { addEbisu(block, ebisuInit, d); }
 }
-function ultraCompressMecab(vov: mecab.MaybeMorpheme[][]) {
-  let ret: any[][] = [];
-  for (let v of vov) {
-    ret.push(v.map(o => {
-      return o ? `${o.literal};${o.pronunciation};${o.lemmaReading};${o.lemma};${o.partOfSpeech.join('-')};${
-                     (o.inflectionType || []).join('-')};${(o.inflection || []).join('-')}`
-               : o;
-    }));
-  }
-  return ret;
+function ultraCompressMecab(v: mecab.MaybeMorpheme[]) {
+  return v.map(o => {
+    return o ? `${o.literal};${o.pronunciation};${o.lemmaReading};${o.lemma};${o.partOfSpeech.join('-')};${
+                   (o.inflectionType || []).join('-')};${(o.inflection || []).join('-')}`
+             : o;
+  });
 }
 class Sentence {
   block: string[];
   init: string = '- ◊sent';
   ebisuInit: string = '  - ◊Ebisu' + ebisuVersion + ': ';
-  parsed: mecab.MaybeMorpheme[][] = [];
-  parsedString = '';
-  tsv = '';
+  parsed: mecab.MaybeMorpheme[] = [];
   rawMecab = '';
+  bunsetsus: mecab.MaybeMorpheme[][] = [];
   constructor(block: string[], d?: Date) {
     this.block = block;
     checkEbisu(this.block, this.ebisuInit, d);
@@ -37,11 +39,21 @@ class Sentence {
   async addMecab(): Promise<boolean> {
     let text = this.block[0].split(' ').slice(2).join(' ');
     this.rawMecab = await mecab.invokeMecab(text.trim());
-    let parsed = mecab.parseMecab(text, this.rawMecab);
-    this.parsed = parsed;
-    let compressed = ultraCompressMecab(parsed);
-    this.parsedString = JSON.stringify(compressed);
-    this.tsv = compressed.map(line => line.map(ent => ent ? ent.split(';').join('\t') : '').join('\n')).join('\n');
+    this.parsed = mecab.parseMecab(text, this.rawMecab)[0];
+    return this.addJdepp();
+  }
+  async addJdepp(): Promise<boolean> {
+    let jdeppRaw = await jdepp.invokeJdepp(this.rawMecab);
+    let jdeppSplit = jdepp.parseJdepp('', jdeppRaw);
+    this.bunsetsus = [];
+    {
+      let added = 0;
+      for (let bunsetsu of jdeppSplit) {
+        // -1 because each `bunsetsu` array here will contain a header before the morphemes
+        this.bunsetsus.push(this.parsed.slice(added, added + bunsetsu.length - 1));
+        added += bunsetsu.length - 1;
+      }
+    }
     return true;
   }
 }
@@ -71,11 +83,6 @@ if (require.main === module) {
     if (inside) { ends.push(lino - 1); }
 
     // Make some objects
-    function* zip(...arrs: any[][]) {
-      const stop = Math.min(...arrs.map(v => v.length));
-      for (let i = 0; i < stop; i++) { yield arrs.map(v => v[i]); }
-    }
-
     let sentences: Sentence[] = [];
     for (let [start, end] of zip(starts, ends)) {
       let thisblock = lines.slice(start, end + 1);
@@ -88,12 +95,9 @@ if (require.main === module) {
 
     for (let s of sentences) {
       console.log(s.block[0]);
-      let jdeppRaw = await jdepp.invokeJdepp(s.rawMecab);
-      let jdeppSplit = jdepp.parseJdepp('', jdeppRaw);
-      let jdeppChunksizes = jdeppSplit.map(v => v.length - 1);
-      let chunks = s.tsv.trim().split('\n');
-      for (let size of jdeppChunksizes) {
-        console.log(chunks.splice(0, size).join('\n'));
+      for (let b of s.bunsetsus) {
+        let tsv = ultraCompressMecab(b).map(ent => ent ? ent.split(';').join('\t') : '').join('\n');
+        console.log(tsv);
         console.log('---');
       }
     }
