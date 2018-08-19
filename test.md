@@ -98,3 +98,12 @@ Adjectivals:
 - ◊sent この仕事は難しいけれども面白いです。
 - ◊sent 本田さんはゴルフが好きなだけだ。上手じゃない。
 - ◊sent あの店のパンは古いことがある。
+
+So when I see a particle morpheme, am I going to cloze-delete just it (treating it as a "real" particle) or am I going to treat it as part of the adjectival/verbal phrase (bunsetsu) it's in and cloze-delete the whole bunsetsu? And when there's no particles in a bunsetsu, how can I identify adjectival/verbal conjugated phrases?
+- If bunsetsu starts with morpheme whose part-of-speech starts with "verb" or "adjective", it's a conjugated phrase.
+- All other morpheme particles found outside those bunsetsu, treat as particles to cloze.
+- Problems:
+  - よ さ が: starts with "adjective" but the final particle isn't part of the conjugation
+  - 難しい けれど も: starts "adjective" but last two particles are really one particle
+  - 古い こと が ある: ditto.
+- You know. As long as the particle is getting reviewed. Because each particle and morpheme in a conjugated-verb/adjective bunsetsu will have its own Ebisu track.

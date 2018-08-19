@@ -29,9 +29,11 @@ class Sentence {
   block: string[];
   init: string = '- ◊sent';
   ebisuInit: string = '  - ◊Ebisu' + ebisuVersion + ': ';
-  parsed: mecab.MaybeMorpheme[] = [];
+  morphemes: mecab.MaybeMorpheme[] = [];
   rawMecab = '';
   bunsetsus: mecab.MaybeMorpheme[][] = [];
+  conjugatedBunsetsus: mecab.MaybeMorpheme[][] = [];
+  particleMorphemes: mecab.MaybeMorpheme[] = [];
   constructor(block: string[], d?: Date) {
     this.block = block;
     checkEbisu(this.block, this.ebisuInit, d);
@@ -39,7 +41,7 @@ class Sentence {
   async addMecab(): Promise<boolean> {
     let text = this.block[0].split(' ').slice(2).join(' ');
     this.rawMecab = await mecab.invokeMecab(text.trim());
-    this.parsed = mecab.parseMecab(text, this.rawMecab)[0];
+    this.morphemes = mecab.parseMecab(text, this.rawMecab)[0];
     return this.addJdepp();
   }
   async addJdepp(): Promise<boolean> {
@@ -50,11 +52,31 @@ class Sentence {
       let added = 0;
       for (let bunsetsu of jdeppSplit) {
         // -1 because each `bunsetsu` array here will contain a header before the morphemes
-        this.bunsetsus.push(this.parsed.slice(added, added + bunsetsu.length - 1));
+        this.bunsetsus.push(this.morphemes.slice(added, added + bunsetsu.length - 1));
         added += bunsetsu.length - 1;
       }
     }
+    // morphemes and bunsetesus filled
+    this.identifyQuizItems();
     return true;
+  }
+  identifyQuizItems() {
+    this.particleMorphemes = [];
+    this.conjugatedBunsetsus = [];
+    for (let bunsetsu of this.bunsetsus) {
+      let first = bunsetsu[0];
+      if (!first) { continue; }
+      const pos0 = first.partOfSpeech[0];
+      if (bunsetsu.length > 1 && (pos0.startsWith('verb') || pos0.startsWith('adject'))) {
+        this.conjugatedBunsetsus.push(
+            bunsetsu.filter(m => m && !(m.partOfSpeech[0] === 'supplementary_symbol') &&
+                                 !(m.partOfSpeech[0] === 'particle' && m.partOfSpeech[1] === 'phrase_final')));
+      } else {
+        // only add particles if they're NOT inside conjugated phrases
+        this.particleMorphemes = this.particleMorphemes.concat(bunsetsu.filter(
+            m => m && m.partOfSpeech[0].startsWith('particle') && !m.partOfSpeech[1].startsWith('phrase_final')))
+      }
+    }
   }
 }
 
@@ -93,13 +115,18 @@ if (require.main === module) {
     }
     await Promise.all(sentences.map(s => s.addMecab()));
 
+    const morphemesToTsv = (b: mecab.MaybeMorpheme[]) =>
+        ultraCompressMecab(b).map(ent => ent ? ent.split(';').join('\t') : '').join('\n')
     for (let s of sentences) {
       console.log(s.block[0]);
       for (let b of s.bunsetsus) {
-        let tsv = ultraCompressMecab(b).map(ent => ent ? ent.split(';').join('\t') : '').join('\n');
+        let tsv = morphemesToTsv(b);
         console.log(tsv);
         console.log('---');
       }
+      console.log(morphemesToTsv(s.particleMorphemes));
+      console.log(
+          s.conjugatedBunsetsus.map(s => morphemesToTsv(s).replace(/\n/g, '\n  ').replace(/^/, '>>')).join('\n'));
     }
   })();
 }
