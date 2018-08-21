@@ -3,9 +3,9 @@ import * as mecab from './mecabUnidic';
 
 const promisify = require('util').promisify;
 const readFile = promisify(require('fs').readFile);
-// function* enumerate<T>(v: T[]): IterableIterator<[number, T]> {
-//   for (let n = 0; n < v.length; n++) { yield [n, v[n]]; }
-// }
+function* enumerate<T>(v: T[]): IterableIterator<[number, T]> {
+  for (let n = 0; n < v.length; n++) { yield [n, v[n]]; }
+}
 function* zip(...arrs: any[][]) {
   const stop = Math.min(...arrs.map(v => v.length));
   for (let i = 0; i < stop; i++) { yield arrs.map(v => v[i]); }
@@ -18,12 +18,9 @@ function addEbisu(block: string[], ebisuInit: string, d?: Date) {
 function checkEbisu(block: string[], ebisuInit: string, d?: Date) {
   if (!block.some(line => line.startsWith(ebisuInit))) { addEbisu(block, ebisuInit, d); }
 }
-function ultraCompressMecab(v: mecab.MaybeMorpheme[]) {
-  return v.map(o => {
-    return o ? `${o.literal};${o.pronunciation};${o.lemmaReading};${o.lemma};${o.partOfSpeech.join('-')};${
-                   (o.inflectionType || []).join('-')};${(o.inflection || []).join('-')}`
-             : o;
-  });
+function ultraCompressMorpheme(m: mecab.MaybeMorpheme): string {
+  return m ? [m.literal, m.pronunciation, m.lemmaReading, m.lemma, m.partOfSpeech.join('-'),
+                         (m.inflectionType || []).join('-'), (m.inflection || []).join('-')].join('\t') : '';
 }
 class Sentence {
   block: string[];
@@ -84,6 +81,10 @@ if (require.main === module) {
   (async function() {
     var txt: string = await readFile('test.md', 'utf8');
 
+    // Look for a `# Morphemes/bunsetsu` header and add if missing
+    let morphemeHeader = '# Morphemes/Bunsetsu\n';
+    if (txt.indexOf(morphemeHeader) < 0) { txt += `\n\n${morphemeHeader}`; }
+
     // Find blocks
     var starts: number[] = [];
     var ends: number[] = [];
@@ -105,28 +106,41 @@ if (require.main === module) {
     if (inside) { ends.push(lino - 1); }
 
     // Make some objects
-    let sentences: Sentence[] = [];
+    let content: Array<Sentence|string[]> = [];
     for (let [start, end] of zip(starts, ends)) {
       let thisblock = lines.slice(start, end + 1);
       if (lines[start].indexOf('◊sent') >= 0) {
         let o = new Sentence(thisblock);
-        sentences.push(o);
+        content.push(o);
+      } else {
+        content.push(thisblock)
       }
     }
+
+    // Locate where we'll store bunsetsu and morphemes quizzes
+    let morphemeHeaderContentIndex = -1;
+    let morphemeHeaderSubIndex = -1;
+    for (let [index, o] of enumerate(content)) {
+      if (!(o instanceof Sentence)) {
+        let hit = o.findIndex(s => s.indexOf(morphemeHeader) >= 0);
+        if (hit >= 0) {
+          morphemeHeaderContentIndex = index;
+          morphemeHeaderSubIndex = hit;
+        }
+      }
+    }
+
+    // Send off content to MeCab and Jdepp
+    let sentences: Sentence[] = content.filter(o => o instanceof Sentence) as Sentence[];
     await Promise.all(sentences.map(s => s.addMecab()));
 
-    const morphemesToTsv = (b: mecab.MaybeMorpheme[]) =>
-        ultraCompressMecab(b).map(ent => ent ? ent.split(';').join('\t') : '').join('\n')
+    // Print
+    const morphemesToTsv = (b: mecab.MaybeMorpheme[]) => b.map(ultraCompressMorpheme).join('\n');
     for (let s of sentences) {
       console.log(s.block[0]);
-      for (let b of s.bunsetsus) {
-        let tsv = morphemesToTsv(b);
-        console.log(tsv);
-        console.log('---');
-      }
-      console.log(morphemesToTsv(s.particleMorphemes));
-      console.log(
-          s.conjugatedBunsetsus.map(s => morphemesToTsv(s).replace(/\n/g, '\n  ').replace(/^/, '>>')).join('\n'));
+      console.log(s.bunsetsus.map(morphemesToTsv).join('\n---\n'));
+      console.log(('..' + morphemesToTsv(s.particleMorphemes)).replace(/\n/g, '\n..'));
+      console.log(s.conjugatedBunsetsus.map(s => ('>>' + morphemesToTsv(s)).replace(/\n/g, '\n  ')).join('\n'));
     }
   })();
 }
