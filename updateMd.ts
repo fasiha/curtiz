@@ -1,10 +1,9 @@
-import {print} from 'util';
-
 import * as jdepp from './jdepp';
 import * as mecab from './mecabUnidic';
 
 const promisify = require('util').promisify;
 const readFile = promisify(require('fs').readFile);
+const writeFile = promisify(require('fs').writeFile);
 function* enumerate<T>(v: T[]): IterableIterator<[number, T]> {
   for (let n = 0; n < v.length; n++) { yield [n, v[n]]; }
 }
@@ -152,10 +151,6 @@ if (require.main === module) {
   (async function() {
     var txt: string = await readFile('test.md', 'utf8');
 
-    // Look for a `# Morphemes/bunsetsu` header and add if missing
-    let morphemeHeader = '# Morphemes/Bunsetsu\n';
-    if (txt.indexOf(morphemeHeader) < 0) { txt += `\n\n${morphemeHeader}`; }
-
     // Find blocks
     var starts: number[] = [];
     var ends: number[] = [];
@@ -179,8 +174,11 @@ if (require.main === module) {
 
     // Make some objects
     let content: Array<SentenceBlock|MorphemeBlock|BunsetsuBlock|string[]> = [];
-    let morphemeBunsetsuToIdx: Map < string, number >= new Map();
-    for (let [start, end] of zip(starts, ends)) {
+    let morphemeBunsetsuToIdx: Map<string, number> = new Map();
+    if (starts[0] > 0) { content.push(lines.slice(0, starts[0])); }
+    for (let [start, end, prevEnd] of zip(starts, ends, [-1].concat(ends.slice(0, -1)))) {
+      // push the content before this
+      if (prevEnd > 0 && start !== prevEnd + 1) { content.push(lines.slice(prevEnd + 1, start)); }
       let thisblock = lines.slice(start, end + 1);
       if (lines[start].startsWith(SentenceBlock.init)) {
         let o = new SentenceBlock(thisblock);
@@ -195,26 +193,13 @@ if (require.main === module) {
         throw new Error('unknown header');
       }
     }
-
-    // Locate where we'll store bunsetsu and morphemes quizzes
-    let morphemeHeaderContentIndex = -1;
-    let morphemeHeaderSubIndex = -1;
-    for (let [index, o] of enumerate(content)) {
-      if (o instanceof Array) {
-        let hit = o.findIndex(s => s.indexOf(morphemeHeader) >= 0);
-        if (hit >= 0) {
-          morphemeHeaderContentIndex = index;
-          morphemeHeaderSubIndex = hit;
-        }
-      }
-    }
+    if (ends[ends.length - 1] < lines.length) { content.push(lines.slice(ends[ends.length - 1])); }
 
     // Send off content to MeCab and Jdepp
     let sentences: SentenceBlock[] = content.filter(o => o instanceof SentenceBlock) as SentenceBlock[];
     await Promise.all(sentences.map(s => s.addMecab()));
 
-    // Print
-    print(morphemeBunsetsuToIdx);
+    // Print, and
     const morphemesToTsv = (b: mecab.MaybeMorpheme[]) => b.map(ultraCompressMorpheme).join('\n');
     for (let s of sentences) {
       console.log(s.block[0]);
@@ -228,7 +213,15 @@ if (require.main === module) {
           content.push(mb);
         }
       }
+      for (let b of s.conjugatedBunsetsus) {
+        let bb = new BunsetsuBlock(undefined, b);
+        if (!morphemeBunsetsuToIdx.has(bb.block[0])) {
+          morphemeBunsetsuToIdx.set(bb.block[0], content.length);
+          content.push(bb);
+        }
+      }
     }
-    console.log(content.map(o => o instanceof Array ? o : o.block));
+    // console.log();
+    writeFile('_.md', content.map(o => (o instanceof Array ? o : o.block).join('\n')).join('\n'));
   })();
 }
