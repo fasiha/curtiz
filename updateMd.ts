@@ -4,9 +4,9 @@ import * as mecab from './mecabUnidic';
 const promisify = require('util').promisify;
 const readFile = promisify(require('fs').readFile);
 const writeFile = promisify(require('fs').writeFile);
-function* enumerate<T>(v: T[]): IterableIterator<[number, T]> {
-  for (let n = 0; n < v.length; n++) { yield [n, v[n]]; }
-}
+// function* enumerate<T>(v: T[]): IterableIterator<[number, T]> {
+//   for (let n = 0; n < v.length; n++) { yield [n, v[n]]; }
+// }
 function* zip(...arrs: any[][]) {
   const stop = Math.min(...arrs.map(v => v.length));
   for (let i = 0; i < stop; i++) { yield arrs.map(v => v[i]); }
@@ -41,8 +41,8 @@ function decompressMorpheme(s: string): mecab.MaybeMorpheme {
     lemmaReading,
     lemma,
     partOfSpeech: split(partOfSpeech),
-    inflectionType: nullable(split(inflectionType)),
-    inflection: nullable(split(inflection))
+    inflectionType: nullable(split(inflectionType || '')),
+    inflection: nullable(split(inflection || ''))
   };
 }
 function decompressMorphemes(s: string): mecab.MaybeMorpheme[] { return s.split(BUNSETSUSEP).map(decompressMorpheme); }
@@ -199,7 +199,7 @@ if (require.main === module) {
     let sentences: SentenceBlock[] = content.filter(o => o instanceof SentenceBlock) as SentenceBlock[];
     await Promise.all(sentences.map(s => s.addMecab()));
 
-    // Print, and
+    // Print, and create new blocks as needed
     const morphemesToTsv = (b: mecab.MaybeMorpheme[]) => b.map(ultraCompressMorpheme).join('\n');
     for (let s of sentences) {
       console.log(s.block[0]);
@@ -220,8 +220,9 @@ if (require.main === module) {
           content.push(bb);
         }
       }
+      // TODO how to refactor above two loops and simplify them?
     }
-    // console.log();
-    writeFile('_.md', content.map(o => (o instanceof Array ? o : o.block).join('\n')).join('\n'));
+    // Save file
+    writeFile('test2.md', content.map(o => (o instanceof Array ? o : o.block).join('\n')).join('\n'));
   })();
 }
