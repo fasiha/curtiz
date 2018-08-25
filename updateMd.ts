@@ -4,16 +4,16 @@ import * as mecab from './mecabUnidic';
 const promisify = require('util').promisify;
 const readFile = promisify(require('fs').readFile);
 const writeFile = promisify(require('fs').writeFile);
-// function* enumerate<T>(v: T[]): IterableIterator<[number, T]> {
-//   for (let n = 0; n < v.length; n++) { yield [n, v[n]]; }
-// }
+function* enumerate<T>(v: T[]): IterableIterator<[number, T]> {
+  for (let n = 0; n < v.length; n++) { yield [n, v[n]]; }
+}
 function* zip(...arrs: any[][]) {
   const stop = Math.min(...arrs.map(v => v.length));
   for (let i = 0; i < stop; i++) { yield arrs.map(v => v[i]); }
 }
 
 const ebisuVersion = '1';
-const ebisuInit: string = '  - ◊Ebisu' + ebisuVersion + ': ';
+const ebisuInit: string = '  - ◊Ebisu' + ebisuVersion + ' ';
 function addEbisu(block: string[], ebisuInit: string, d?: Date) {
   block.push(ebisuInit + (d || new Date()).toISOString() + ', 4, 4, 1');
 }
@@ -47,6 +47,7 @@ function decompressMorpheme(s: string): mecab.MaybeMorpheme {
 }
 function decompressMorphemes(s: string): mecab.MaybeMorpheme[] { return s.split(BUNSETSUSEP).map(decompressMorpheme); }
 
+type Content = SentenceBlock|MorphemeBlock|BunsetsuBlock|string[];
 class MorphemeBlock {
   block: string[];
   static init: string = '- ◊morpheme';
@@ -95,24 +96,84 @@ class BunsetsuBlock {
 }
 class SentenceBlock {
   block: string[];
+  sentence: string;
   static init: string = '- ◊sent';
+  morphemeStart = '  - ◊morpheme ';
+  bunsetsuStart = '  - ◊bunsetsu ';
+  bunSep = ' :: ';
+  particleMorphemeStart = '  - ◊particle '
+  conjugatedBunsetsuStart = '  - ◊conjugated '
+
   morphemes: mecab.MaybeMorpheme[] = [];
-  rawMecab = '';
   bunsetsus: mecab.MaybeMorpheme[][] = [];
   conjugatedBunsetsus: mecab.MaybeMorpheme[][] = [];
   particleMorphemes: mecab.MaybeMorpheme[] = [];
   constructor(block: string[], d?: Date) {
     this.block = block;
+    this.sentence = block[0].slice(SentenceBlock.init.length).trim();
     checkEbisu(this.block, ebisuInit, d);
   }
-  async addMecab(): Promise<boolean> {
-    let text = this.block[0].split(' ').slice(2).join(' ');
-    this.rawMecab = await mecab.invokeMecab(text.trim());
-    this.morphemes = mecab.parseMecab(text, this.rawMecab)[0];
-    return this.addJdepp();
+  blockToMorphemes(): mecab.MaybeMorpheme[] {
+    return this.block.filter(s => s.startsWith(this.morphemeStart))
+        .map(s => decompressMorpheme(s.slice(this.morphemeStart.length)));
   }
-  async addJdepp(): Promise<boolean> {
-    let jdeppRaw = await jdepp.invokeJdepp(this.rawMecab);
+  findAndParseBunsetsuLine(): string[] {
+    let line = this.block.find(s => s.startsWith(this.bunsetsuStart)) || '';
+    return line.slice(this.bunsetsuStart.length).split(this.bunSep);
+  }
+  hasParsed(): boolean {
+    let morphemes = this.blockToMorphemes();
+    if (morphemes.length === 0) { return false; }
+    let reconstructed = morphemes.map(m => m && m.literal).join('');
+    let bunsetsuReconstructed = this.findAndParseBunsetsuLine().join('');
+    return (reconstructed === this.sentence) && (bunsetsuReconstructed === this.sentence);
+  }
+  saveParsed(): void {
+    for (let m of this.morphemes) { this.block.push(this.morphemeStart + ultraCompressMorpheme(m)); }
+    this.block.push(this.bunsetsuStart +
+                    this.bunsetsus.map(v => v.filter(o => o).map(o => o && o.literal).join('')).join(this.bunSep));
+    for (let m of this.particleMorphemes) { this.block.push(this.particleMorphemeStart + (m && m.literal)) }
+    for (let b of this.conjugatedBunsetsus) {
+      this.block.push(this.conjugatedBunsetsuStart + b.map(o => o && o.literal).join(''));
+    }
+  }
+  async parse(): Promise<boolean> {
+    if (!this.hasParsed()) {
+      let text = this.block[0].split(' ').slice(2).join(' ');
+      let rawMecab = await mecab.invokeMecab(text.trim());
+      this.morphemes = mecab.parseMecab(text, rawMecab)[0].filter(o => o);
+      await this.addJdepp(rawMecab);
+      this.identifyQuizItems();
+      this.saveParsed();
+      return false;
+    }
+    this.morphemes = this.blockToMorphemes();
+    let bunsetsuGuide = this.findAndParseBunsetsuLine();
+    // morphemes:  [lit1, lit2, lit3, lit4, lit5, lit6]
+    // bun. guide: [lit1lit2, lit3, lit4lit5lit6]
+    // desired:    [lit1, lit2], [lit3], [lit4, lit5, lit6]
+    this.bunsetsus = [];
+    {
+      let lits = this.morphemes.map(o => o ? o.literal : '');
+      let added = 0;
+      for (let bun of bunsetsuGuide) {
+        let litSum = '';
+        for (let [litidx, lit] of enumerate(lits)) {
+          litSum += lit;
+          if (litSum === bun) {
+            this.bunsetsus.push(this.morphemes.slice(added, added + litidx + 1));
+            lits = lits.slice(litidx + 1);
+            added += litidx + 1;
+            break;
+          }
+        }
+      }
+    }
+    this.identifyQuizItems();
+    return true;
+  }
+  async addJdepp(raw: string): Promise<boolean> {
+    let jdeppRaw = await jdepp.invokeJdepp(raw);
     let jdeppSplit = jdepp.parseJdepp('', jdeppRaw);
     this.bunsetsus = [];
     {
@@ -124,7 +185,6 @@ class SentenceBlock {
       }
     }
     // morphemes and bunsetesus filled
-    this.identifyQuizItems();
     return true;
   }
   identifyQuizItems() {
@@ -173,7 +233,7 @@ if (require.main === module) {
     if (inside) { ends.push(lino - 1); }
 
     // Make some objects
-    let content: Array<SentenceBlock|MorphemeBlock|BunsetsuBlock|string[]> = [];
+    let content: Array<Content> = [];
     let morphemeBunsetsuToIdx: Map<string, number> = new Map();
     if (starts[0] > 0) { content.push(lines.slice(0, starts[0])); }
     for (let [start, end, prevEnd] of zip(starts, ends, [-1].concat(ends.slice(0, -1)))) {
@@ -193,11 +253,12 @@ if (require.main === module) {
         throw new Error('unknown header');
       }
     }
-    if (ends[ends.length - 1] < lines.length) { content.push(lines.slice(ends[ends.length - 1])); }
+    // if there's more content:
+    if (ends[ends.length - 1] < lines.length) { content.push(lines.slice(1 + ends[ends.length - 1])); }
 
     // Send off content to MeCab and Jdepp
     let sentences: SentenceBlock[] = content.filter(o => o instanceof SentenceBlock) as SentenceBlock[];
-    await Promise.all(sentences.map(s => s.addMecab()));
+    await Promise.all(sentences.map(s => s.parse()));
 
     // Print, and create new blocks as needed
     const morphemesToTsv = (b: mecab.MaybeMorpheme[]) => b.map(ultraCompressMorpheme).join('\n');
@@ -223,6 +284,9 @@ if (require.main === module) {
       // TODO how to refactor above two loops and simplify them?
     }
     // Save file
-    writeFile('test2.md', content.map(o => (o instanceof Array ? o : o.block).join('\n')).join('\n'));
+    const ensureFinalNewline = (s: string) => s.endsWith('\n') ? s : s + '\n';
+    const contentToString = (content: Array<Content>) =>
+        ensureFinalNewline(content.map(o => (o instanceof Array ? o : o.block).join('\n')).join('\n'));
+    writeFile('test2.md', contentToString(content));
   })();
 }
