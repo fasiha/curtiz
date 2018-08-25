@@ -47,7 +47,28 @@ function decompressMorpheme(s: string): mecab.MaybeMorpheme {
 }
 function decompressMorphemes(s: string): mecab.MaybeMorpheme[] { return s.split(BUNSETSUSEP).map(decompressMorpheme); }
 
-type Content = SentenceBlock|MorphemeBlock|BunsetsuBlock|string[];
+type Content = VocabBlock|SentenceBlock|MorphemeBlock|BunsetsuBlock|string[];
+class VocabBlock {
+  block: string[];
+  static init: string = '- ◊vocab'
+  seperator: string = ': ';
+
+  reading: string;
+  translation: string;
+  kanji?: string;
+  constructor(block: string[], d?: Date) {
+    this.block = block;
+    checkEbisu(this.block, ebisuInit, d);
+    let pieces = this.block[0].slice(VocabBlock.init.length).trim().split(this.seperator);
+    if (pieces.length === 2 || pieces.length === 3) {
+      this.reading = pieces[0];
+      this.translation = pieces[1];
+      if (pieces.length === 3) { this.kanji = pieces[2]; }
+    } else {
+      throw new Error('Vocab block needs 2 or 3 fields');
+    }
+  }
+}
 class MorphemeBlock {
   block: string[];
   static init: string = '- ◊morpheme';
@@ -218,7 +239,7 @@ if (require.main === module) {
     let lino = 0;
     let inside = false;
     var lines = txt.split('\n');
-    const inits = [SentenceBlock, MorphemeBlock, BunsetsuBlock].map(o => o.init);
+    const inits = [SentenceBlock, MorphemeBlock, BunsetsuBlock, VocabBlock].map(o => o.init);
     for (let line of lines) {
       if (inside && !line.startsWith('  - ◊')) {
         ends.push(lino - 1);
@@ -249,8 +270,10 @@ if (require.main === module) {
       } else if (lines[start].startsWith(BunsetsuBlock.init)) {
         morphemeBunsetsuToIdx.set(thisblock[0], content.length);
         content.push(new BunsetsuBlock(thisblock))
+      } else if (lines[start].startsWith(VocabBlock.init)) {
+        content.push(new VocabBlock(thisblock))
       } else {
-        throw new Error('unknown header');
+        throw new Error('unknown header, did you forget to add a parser for it here?');
       }
     }
     // if there's more content:
