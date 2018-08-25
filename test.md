@@ -107,3 +107,7 @@ So when I see a particle morpheme, am I going to cloze-delete just it (treating 
   - 難しい けれど も: starts "adjective" but last two particles are really one particle
   - 古い こと が ある: ditto.
 - You know. As long as the particle is getting reviewed. Because each particle and morpheme in a conjugated-verb/adjective bunsetsu will have its own Ebisu track.
+
+Ok! `updateMd.ts` is in: it's an idempotent function that'll consume a Markdown file, update any quiz blocks (bullets starting with `- ◊` + a relevant identifier) with MeCab and Jdepp outputs as well as an Ebisu initialization if missing, and append the file with any particle (morphemes) or conjugated phrases (bunsetsu) that can be quizzed.
+
+I'll start on a `quiz.ts` that'll consume a Markdown file processed with `updateMd.ts` (which should be renamed `validateMd.ts`—"update" here means "I'm done editing the Markdown manually, adding content, etc., update it"), execute quizzes, and update the Markdown file with the quizzed blocks' new Ebisu record (note that if a particle is quizzed by cloze-deleting all the particles in a sentence, several quiz blocks might have updated Ebisu records).
