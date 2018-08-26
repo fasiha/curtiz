@@ -228,83 +228,93 @@ class SentenceBlock {
   }
 }
 
+function linesToBlocks(lines: string[]) {
+  let starts: number[] = [];
+  let ends: number[] = [];
+
+  // Find block starts and stops
+  let lino = 0;
+  let inside = false;
+  const inits = [SentenceBlock, MorphemeBlock, BunsetsuBlock, VocabBlock].map(o => o.init);
+  for (let line of lines) {
+    if (inside && !line.startsWith('  - ◊')) {
+      ends.push(lino - 1);
+      inside = false;
+    }
+    if (!inside && line.startsWith('- ◊') && inits.some(init => line.startsWith(init))) {
+      starts.push(lino);
+      inside = true;
+    }
+    lino++;
+  }
+  if (inside) { ends.push(lino - 1); }
+
+  // Then make an array of Contents: actual blocks for quizzing, and just plain Markdown
+  let content: Array<Content> = [];
+  if (starts[0] > 0) { content.push(lines.slice(0, starts[0])); }
+  for (let [start, end, prevEnd] of zip(starts, ends, [-1].concat(ends.slice(0, -1)))) {
+    // push the plain Markdown text before this
+    if (prevEnd > 0 && start !== prevEnd + 1) { content.push(lines.slice(prevEnd + 1, start)); }
+
+    // Make an object for this block
+    let thisblock = lines.slice(start, end + 1);
+    if (lines[start].startsWith(SentenceBlock.init)) {
+      content.push(new SentenceBlock(thisblock));
+    } else if (lines[start].startsWith(MorphemeBlock.init)) {
+      content.push(new MorphemeBlock(thisblock))
+    } else if (lines[start].startsWith(BunsetsuBlock.init)) {
+      content.push(new BunsetsuBlock(thisblock))
+    } else if (lines[start].startsWith(VocabBlock.init)) {
+      content.push(new VocabBlock(thisblock))
+    } else {
+      throw new Error('unknown header, did you forget to add a parser for it here?');
+    }
+  }
+  // if there's more content:
+  if (ends[ends.length - 1] < lines.length) { content.push(lines.slice(1 + ends[ends.length - 1])); }
+  return content;
+}
+
+async function parseAndUpdate(content: Content[]): Promise<Content[]> {
+  let sentences: SentenceBlock[] = content.filter(o => o instanceof SentenceBlock) as SentenceBlock[];
+  await Promise.all(sentences.map(s => s.parse()));
+
+  // Find existing `MorphemeBlock`s/`BunsetsuBlock`s and cache their first line
+  let morphemeBunsetsuToIdx: Map<string, number> = new Map();
+  for (let [idx, o] of enumerate(content)) {
+    if (o instanceof MorphemeBlock || o instanceof BunsetsuBlock) { morphemeBunsetsuToIdx.set(o.block[0], idx); }
+  }
+
+  // For each sentence, make new `MorphemeBlock`s/`BunsetsuBlock`s as needed
+  const looper = (mb: mecab.MaybeMorpheme|mecab.MaybeMorpheme[]) => {
+    let o = mb instanceof Array ? new BunsetsuBlock(undefined, mb) : new MorphemeBlock(undefined, mb);
+    if (!morphemeBunsetsuToIdx.has(o.block[0])) {
+      morphemeBunsetsuToIdx.set(o.block[0], content.length);
+      content.push(o);
+    }
+  };
+  for (let s of sentences) {
+    s.particleMorphemes.forEach(looper);
+    s.conjugatedBunsetsus.forEach(looper);
+  }
+  return content;
+}
+
 if (require.main === module) {
   (async function() {
-    var txt: string = await readFile('test.md', 'utf8');
-
-    // Find blocks
-    var starts: number[] = [];
-    var ends: number[] = [];
-
-    let lino = 0;
-    let inside = false;
-    var lines = txt.split('\n');
-    const inits = [SentenceBlock, MorphemeBlock, BunsetsuBlock, VocabBlock].map(o => o.init);
-    for (let line of lines) {
-      if (inside && !line.startsWith('  - ◊')) {
-        ends.push(lino - 1);
-        inside = false;
-      }
-      if (!inside && line.startsWith('- ◊') && inits.some(init => line.startsWith(init))) {
-        starts.push(lino);
-        inside = true;
-      }
-      lino++;
-    }
-    if (inside) { ends.push(lino - 1); }
-
-    // Make some objects
-    let content: Array<Content> = [];
-    let morphemeBunsetsuToIdx: Map<string, number> = new Map();
-    if (starts[0] > 0) { content.push(lines.slice(0, starts[0])); }
-    for (let [start, end, prevEnd] of zip(starts, ends, [-1].concat(ends.slice(0, -1)))) {
-      // push the content before this
-      if (prevEnd > 0 && start !== prevEnd + 1) { content.push(lines.slice(prevEnd + 1, start)); }
-      let thisblock = lines.slice(start, end + 1);
-      if (lines[start].startsWith(SentenceBlock.init)) {
-        let o = new SentenceBlock(thisblock);
-        content.push(o);
-      } else if (lines[start].startsWith(MorphemeBlock.init)) {
-        morphemeBunsetsuToIdx.set(thisblock[0], content.length);
-        content.push(new MorphemeBlock(thisblock))
-      } else if (lines[start].startsWith(BunsetsuBlock.init)) {
-        morphemeBunsetsuToIdx.set(thisblock[0], content.length);
-        content.push(new BunsetsuBlock(thisblock))
-      } else if (lines[start].startsWith(VocabBlock.init)) {
-        content.push(new VocabBlock(thisblock))
-      } else {
-        throw new Error('unknown header, did you forget to add a parser for it here?');
-      }
-    }
-    // if there's more content:
-    if (ends[ends.length - 1] < lines.length) { content.push(lines.slice(1 + ends[ends.length - 1])); }
-
-    // Send off content to MeCab and Jdepp
-    let sentences: SentenceBlock[] = content.filter(o => o instanceof SentenceBlock) as SentenceBlock[];
-    await Promise.all(sentences.map(s => s.parse()));
+    let txt: string = await readFile('test.md', 'utf8');
+    let lines = txt.split('\n');
+    let content = linesToBlocks(lines);
+    content = await parseAndUpdate(content);
 
     // Print, and create new blocks as needed
     const morphemesToTsv = (b: mecab.MaybeMorpheme[]) => b.map(ultraCompressMorpheme).join('\n');
+    let sentences: SentenceBlock[] = content.filter(o => o instanceof SentenceBlock) as SentenceBlock[];
     for (let s of sentences) {
       console.log(s.block[0]);
       console.log(s.bunsetsus.map(morphemesToTsv).join('\n---\n'));
       console.log(('..' + morphemesToTsv(s.particleMorphemes)).replace(/\n/g, '\n..'));
       console.log(s.conjugatedBunsetsus.map(s => ('>>' + morphemesToTsv(s)).replace(/\n/g, '\n  ')).join('\n'));
-      for (let m of s.particleMorphemes) {
-        let mb = new MorphemeBlock(undefined, m);
-        if (!morphemeBunsetsuToIdx.has(mb.block[0])) {
-          morphemeBunsetsuToIdx.set(mb.block[0], content.length);
-          content.push(mb);
-        }
-      }
-      for (let b of s.conjugatedBunsetsus) {
-        let bb = new BunsetsuBlock(undefined, b);
-        if (!morphemeBunsetsuToIdx.has(bb.block[0])) {
-          morphemeBunsetsuToIdx.set(bb.block[0], content.length);
-          content.push(bb);
-        }
-      }
-      // TODO how to refactor above two loops and simplify them?
     }
     // Save file
     const ensureFinalNewline = (s: string) => s.endsWith('\n') ? s : s + '\n';
