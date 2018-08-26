@@ -4,14 +4,15 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "tape test/*"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "Unlicense",
   "devDependencies": {
     "@types/node": "^10.5.2",
     "get-stdin": "^6.0.0",
+    "tape": "^4.9.1",
     "typescript": "^2.9.2"
   }
 }

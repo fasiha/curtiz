@@ -112,31 +112,31 @@ class BunsetsuBlock {
     }
   }
 }
-class SentenceBlock {
+export class SentenceBlock {
   block: string[];
   sentence: string;
-  static init: string = '- ◊sent';
-  morphemeStart = '  - ◊morpheme ';
-  bunsetsuStart = '  - ◊bunsetsu ';
-  bunSep = ' :: ';
-  particleMorphemeStart = '  - ◊particle '
-  conjugatedBunsetsuStart = '  - ◊conjugated '
-
   morphemes: mecab.MaybeMorpheme[] = [];
   bunsetsus: mecab.MaybeMorpheme[][] = [];
   conjugatedBunsetsus: mecab.MaybeMorpheme[][] = [];
   particleMorphemes: mecab.MaybeMorpheme[] = [];
+  static init: string = '- ◊sent';
+  static morphemeStart = '  - ◊morpheme ';
+  static bunsetsuStart = '  - ◊bunsetsu ';
+  static bunSep = ' :: ';
+  static particleMorphemeStart = '  - ◊particle ';
+  static conjugatedBunsetsuStart = '  - ◊conjugated ';
+
   constructor(block: string[], d?: Date) {
     this.block = block;
     this.sentence = block[0].slice(SentenceBlock.init.length).trim();
   }
   blockToMorphemes(): mecab.MaybeMorpheme[] {
-    return this.block.filter(s => s.startsWith(this.morphemeStart))
-        .map(s => decompressMorpheme(s.slice(this.morphemeStart.length)));
+    return this.block.filter(s => s.startsWith(SentenceBlock.morphemeStart))
+        .map(s => decompressMorpheme(s.slice(SentenceBlock.morphemeStart.length)));
   }
   findAndParseBunsetsuLine(): string[] {
-    let line = this.block.find(s => s.startsWith(this.bunsetsuStart)) || '';
-    return line.slice(this.bunsetsuStart.length).split(this.bunSep);
+    let line = this.block.find(s => s.startsWith(SentenceBlock.bunsetsuStart)) || '';
+    return line.slice(SentenceBlock.bunsetsuStart.length).split(SentenceBlock.bunSep);
   }
   hasParsed(): boolean {
     let morphemes = this.blockToMorphemes();
@@ -146,12 +146,13 @@ class SentenceBlock {
     return (reconstructed === this.sentence) && (bunsetsuReconstructed === this.sentence);
   }
   saveParsed(): void {
-    for (let m of this.morphemes) { this.block.push(this.morphemeStart + ultraCompressMorpheme(m)); }
-    this.block.push(this.bunsetsuStart +
-                    this.bunsetsus.map(v => v.filter(o => o).map(o => o && o.literal).join('')).join(this.bunSep));
-    for (let m of this.particleMorphemes) { this.block.push(this.particleMorphemeStart + (m && m.literal)) }
+    for (let m of this.morphemes) { this.block.push(SentenceBlock.morphemeStart + ultraCompressMorpheme(m)); }
+    this.block.push(
+        SentenceBlock.bunsetsuStart +
+        this.bunsetsus.map(v => v.filter(o => o).map(o => o && o.literal).join('')).join(SentenceBlock.bunSep));
+    for (let m of this.particleMorphemes) { this.block.push(SentenceBlock.particleMorphemeStart + (m && m.literal)) }
     for (let b of this.conjugatedBunsetsus) {
-      this.block.push(this.conjugatedBunsetsuStart + b.map(o => o && o.literal).join(''));
+      this.block.push(SentenceBlock.conjugatedBunsetsuStart + b.map(o => o && o.literal).join(''));
     }
   }
   async parse(): Promise<boolean> {
@@ -224,7 +225,7 @@ class SentenceBlock {
   }
 }
 
-function linesToBlocks(lines: string[]) {
+export function linesToBlocks(lines: string[]): Content[] {
   let starts: number[] = [];
   let ends: number[] = [];
 
@@ -267,7 +268,7 @@ function linesToBlocks(lines: string[]) {
     }
   }
   // if there's more content:
-  if (ends[ends.length - 1] < lines.length) { content.push(lines.slice(1 + ends[ends.length - 1])); }
+  if (ends[ends.length - 1] < lines.length - 1) { content.push(lines.slice(1 + ends[ends.length - 1])); }
   return content;
 }
 
