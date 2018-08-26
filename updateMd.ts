@@ -17,9 +17,9 @@ const ebisuInit: string = '  - ◊Ebisu' + ebisuVersion + ' ';
 function addEbisu(block: string[], ebisuInit: string, d?: Date) {
   block.push(ebisuInit + (d || new Date()).toISOString() + ', 4, 4, 1');
 }
-function checkEbisu(block: string[], ebisuInit: string, d?: Date) {
-  if (!block.some(line => line.startsWith(ebisuInit))) { addEbisu(block, ebisuInit, d); }
-}
+// function checkEbisu(block: string[], ebisuInit: string, d?: Date) {
+//   if (!block.some(line => line.startsWith(ebisuInit))) { addEbisu(block, ebisuInit, d); }
+// }
 const MORPHEMESEP = '\t';
 const BUNSETSUSEP = '::';
 const ELEMENTSEP = '-';
@@ -58,7 +58,6 @@ class VocabBlock {
   kanji?: string;
   constructor(block: string[], d?: Date) {
     this.block = block;
-    checkEbisu(this.block, ebisuInit, d);
     let pieces = this.block[0].slice(VocabBlock.init.length).trim().split(this.seperator);
     if (pieces.length === 2 || pieces.length === 3) {
       this.reading = pieces[0];
@@ -89,7 +88,6 @@ class MorphemeBlock {
         throw new Error('Either block or morpheme or both required');
       }
     }
-    checkEbisu(this.block, ebisuInit, d);
   }
 }
 class BunsetsuBlock {
@@ -112,7 +110,6 @@ class BunsetsuBlock {
         throw new Error('Either block or morpheme or both required');
       }
     }
-    checkEbisu(this.block, ebisuInit, d);
   }
 }
 class SentenceBlock {
@@ -132,7 +129,6 @@ class SentenceBlock {
   constructor(block: string[], d?: Date) {
     this.block = block;
     this.sentence = block[0].slice(SentenceBlock.init.length).trim();
-    checkEbisu(this.block, ebisuInit, d);
   }
   blockToMorphemes(): mecab.MaybeMorpheme[] {
     return this.block.filter(s => s.startsWith(this.morphemeStart))
