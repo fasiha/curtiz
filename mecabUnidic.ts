@@ -310,6 +310,34 @@ export function parseMecab(original: string, result: string) {
   return lines;
 }
 
+const MORPHEMESEP = '\t';
+const BUNSETSUSEP = '::';
+const ELEMENTSEP = '-';
+
+export function ultraCompressMorpheme(m: MaybeMorpheme): string {
+  return m ? [m.literal, m.pronunciation, m.lemmaReading, m.lemma, m.partOfSpeech.join(ELEMENTSEP),
+                         (m.inflectionType || []).join(ELEMENTSEP), (m.inflection || []).join(ELEMENTSEP)].join(MORPHEMESEP) : '';
+}
+export function ultraCompressMorphemes(ms: MaybeMorpheme[]): string {
+  return ms.map(ultraCompressMorpheme).join(BUNSETSUSEP);
+}
+export function decompressMorpheme(s: string): MaybeMorpheme {
+  const split = (s: string) => s.split(ELEMENTSEP);
+  const nullable = (v: any[]) => v.length ? v : null;
+  if (s === '') { return null; }
+  let [literal, pronunciation, lemmaReading, lemma, partOfSpeech, inflectionType, inflection] = s.split(MORPHEMESEP);
+  return {
+    literal,
+    pronunciation,
+    lemmaReading,
+    lemma,
+    partOfSpeech: split(partOfSpeech),
+    inflectionType: nullable(split(inflectionType || '')),
+    inflection: nullable(split(inflection || ''))
+  };
+}
+export function decompressMorphemes(s: string): MaybeMorpheme[] { return s.split(BUNSETSUSEP).map(decompressMorpheme); }
+
 if (require.main === module) {
   const readFile = require('fs').readFile;
   const promisify = require('util').promisify;
