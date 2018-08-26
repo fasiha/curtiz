@@ -20,9 +20,13 @@ function* zip(...arrs: any[][]) {
 
 const ebisuVersion = '1';
 const ebisuInit: string = '  - ◊Ebisu' + ebisuVersion + ' ';
-const ebisuDateSeparator = ':';
+const ebisuDateSeparator = ';';
+const millisecondsPerHour = 3600e3;
 
-export abstract class Quizzable {}
+export abstract class Quizzable {
+  abstract predict(now?: number): number;
+  abstract extractEbisu(): void;
+}
 export type Content = VocabBlock|SentenceBlock|MorphemeBlock|BunsetsuBlock|string[];
 
 class VocabBlock extends Quizzable {
@@ -44,9 +48,9 @@ class VocabBlock extends Quizzable {
     } else {
       throw new Error('Vocab block needs 2 or 3 fields');
     }
-    this.hasEbisu();
+    this.extractEbisu();
   }
-  hasEbisu() {
+  extractEbisu() {
     const ebisuSuperSeparator = ';';
     let line = this.block.find(line => line.startsWith(ebisuInit));
     if (typeof line === 'undefined') {
@@ -57,6 +61,14 @@ class VocabBlock extends Quizzable {
     let eDate = eString.slice(0, eString.indexOf(ebisuDateSeparator));
     let eSubstrings = eString.slice(eDate.length + ebisuDateSeparator.length).split(ebisuSuperSeparator);
     this.ebisu = eSubstrings.map(s => Ebisu.fromString(eDate + Ebisu.fieldSeparator + s));
+  }
+  predict(now?: number): number {
+    if (this.ebisu) {
+      // all ebisu objects in this.ebisu have same lastDate, so pick the first
+      let elapsedHours = ((now || Date.now()) - this.ebisu[0].lastDate.valueOf()) / millisecondsPerHour;
+      return Math.min(...this.ebisu.map(e => e.predict(elapsedHours)));
+    }
+    return Infinity;
   }
 }
 
@@ -87,9 +99,15 @@ class MorphemeBlock extends Quizzable {
         throw new Error('Either block or morpheme or both required');
       }
     }
-    this.hasEbisu();
+    this.extractEbisu();
   }
-  hasEbisu() { this.ebisu = hasSingleEbisu(this.block); }
+  extractEbisu() { this.ebisu = hasSingleEbisu(this.block); }
+  predict(now?: number): number {
+    if (this.ebisu) {
+      return this.ebisu.predict(((now || Date.now()) - this.ebisu.lastDate.valueOf()) / millisecondsPerHour);
+    }
+    return Infinity;
+  }
 }
 class BunsetsuBlock extends Quizzable {
   block: string[];
@@ -113,9 +131,15 @@ class BunsetsuBlock extends Quizzable {
         throw new Error('Either block or morpheme or both required');
       }
     }
-    this.hasEbisu();
+    this.extractEbisu();
   }
-  hasEbisu() { this.ebisu = hasSingleEbisu(this.block); }
+  extractEbisu() { this.ebisu = hasSingleEbisu(this.block); }
+  predict(now?: number): number {
+    if (this.ebisu) {
+      return this.ebisu.predict(((now || Date.now()) - this.ebisu.lastDate.valueOf()) / millisecondsPerHour);
+    }
+    return Infinity;
+  }
 }
 export class SentenceBlock extends Quizzable {
   block: string[];
@@ -136,9 +160,15 @@ export class SentenceBlock extends Quizzable {
     super();
     this.block = block;
     this.sentence = block[0].slice(SentenceBlock.init.length).trim();
-    this.hasEbisu();
+    this.extractEbisu();
   }
-  hasEbisu() { this.ebisu = hasSingleEbisu(this.block); }
+  extractEbisu() { this.ebisu = hasSingleEbisu(this.block); }
+  predict(now?: number): number {
+    if (this.ebisu) {
+      return this.ebisu.predict(((now || Date.now()) - this.ebisu.lastDate.valueOf()) / millisecondsPerHour);
+    }
+    return Infinity;
+  }
   blockToMorphemes(): MaybeMorpheme[] {
     return this.block.filter(s => s.startsWith(SentenceBlock.morphemeStart))
         .map(s => decompressMorpheme(s.slice(SentenceBlock.morphemeStart.length)));
