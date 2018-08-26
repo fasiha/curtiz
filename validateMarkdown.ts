@@ -29,7 +29,7 @@ export abstract class Quizzable {
 }
 export type Content = VocabBlock|SentenceBlock|MorphemeBlock|BunsetsuBlock|string[];
 
-class VocabBlock extends Quizzable {
+export class VocabBlock extends Quizzable {
   block: string[];
   static init: string = '- ◊vocab'
   seperator: string = ': ';
@@ -77,7 +77,7 @@ function hasSingleEbisu(block: string[]): Ebisu|undefined {
   if (typeof line === 'undefined') { return undefined; }
   return Ebisu.fromString(line.slice(ebisuInit.length).replace(ebisuDateSeparator, Ebisu.fieldSeparator));
 }
-class MorphemeBlock extends Quizzable {
+export class MorphemeBlock extends Quizzable {
   block: string[];
   static init: string = '- ◊morpheme';
   morpheme: MaybeMorpheme;
@@ -109,7 +109,7 @@ class MorphemeBlock extends Quizzable {
     return Infinity;
   }
 }
-class BunsetsuBlock extends Quizzable {
+export class BunsetsuBlock extends Quizzable {
   block: string[];
   static init: string = '- ◊bunsetsu';
   bunsetsu: MaybeMorpheme[];

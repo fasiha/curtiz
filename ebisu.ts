@@ -38,7 +38,7 @@ export class Ebisu {
     let model = chunks.slice(1).map(parseFloat);
     return new Ebisu(model, d);
   }
-  static createDefault(expectedHalflife: number = 1, betaAB: number = 12, d?: Date): Ebisu {
+  static createDefault(expectedHalflife: number = 1, betaAB: number = 3, d?: Date): Ebisu {
     return new Ebisu([betaAB, betaAB, expectedHalflife], d || new Date());
   }
 }

@@ -274,6 +274,9 @@ export interface Morpheme {
   inflection: string[]|null;
 }
 export type MaybeMorpheme = Morpheme|null;
+export function morphemesEq(x: MaybeMorpheme, y: MaybeMorpheme): boolean {
+  return !!x && !!y && ultraCompressMorpheme(x) === ultraCompressMorpheme(y);
+}
 export function parseMorpheme(raw: string[]): MaybeMorpheme {
   if (raw.length === 7) {
     const [literal, pronunciation, lemmaReading, lemma, partOfSpeechRaw, inflectionTypeRaw, inflectionRaw] = raw;
