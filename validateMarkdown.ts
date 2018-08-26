@@ -62,14 +62,15 @@ export class VocabBlock extends Quizzable {
     let eSubstrings = eString.slice(eDate.length + ebisuDateSeparator.length).split(ebisuSuperSeparator);
     this.ebisu = eSubstrings.map(s => Ebisu.fromString(eDate + Ebisu.fieldSeparator + s));
   }
-  predict(now?: number): number {
+  predictAll(now?: number): number[] {
     if (this.ebisu) {
       // all ebisu objects in this.ebisu have same lastDate, so pick the first
       let elapsedHours = ((now || Date.now()) - this.ebisu[0].lastDate.valueOf()) / millisecondsPerHour;
-      return Math.min(...this.ebisu.map(e => e.predict(elapsedHours)));
+      return this.ebisu.map(e => e.predict(elapsedHours));
     }
-    return Infinity;
+    return [];
   }
+  predict(now?: number): number { return this.ebisu ? Math.min(...this.predictAll(now)) : Infinity; }
 }
 
 function hasSingleEbisu(block: string[]): Ebisu|undefined {

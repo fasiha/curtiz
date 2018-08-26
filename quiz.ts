@@ -57,7 +57,8 @@ if (require.main === module) {
         [toQuiz, predictedRecall, toQuizIdx] = argmin(learned, o => o.predict(now));
         console.log(`The following quiz has recall probability ${predictedRecall}:`, JSON.stringify(toQuiz, null, 1));
       } else {
-        toQuiz = learned.find(o => o instanceof MorphemeBlock);
+        // toQuiz = learned.find(o => o instanceof MorphemeBlock);
+        toQuiz = learned.find(o => o instanceof BunsetsuBlock);
       }
       if (!toQuiz) {
         console.log('Nothing to review. Learn something and try again.')
@@ -71,10 +72,16 @@ if (require.main === module) {
         console.log('Can quiz with:', candidateSentences.map(o => o.sentence));
       }
       else if (toQuiz instanceof BunsetsuBlock) {
+        let raw = toQuiz.bunsetsu.map(o => o ? o.literal : '').join('');
+        let candidateSentences = learnedSentences.filter(o => o.sentence.includes(raw));
+        console.log('Can quiz with:', candidateSentences.map(o => o.sentence));
       }
       else if (toQuiz instanceof VocabBlock) {
+        let probabilities = toQuiz.predictAll(now);
+        let [minProb, _, minProbIdx] = argmin(probabilities, x => x);
       }
       else if (toQuiz instanceof SentenceBlock) {
+        // This will only happen for a sentence without conjugated bunsetsu or particle morphemes, but it may happen.
       }
       else {
         throw new Error('Unhandled quiz type');
