@@ -253,9 +253,12 @@ export class SentenceBlock extends Quizzable {
       if (!first) { continue; }
       const pos0 = first.partOfSpeech[0];
       if (bunsetsu.length > 1 && (pos0.startsWith('verb') || pos0.startsWith('adject'))) {
-        this.conjugatedBunsetsus.push(
-            bunsetsu.filter(m => m && !(m.partOfSpeech[0] === 'supplementary_symbol') &&
-                                 !(m.partOfSpeech[0] === 'particle' && m.partOfSpeech[1] === 'phrase_final')));
+        this.conjugatedBunsetsus.push(bunsetsu);
+        /*
+        // If you want to filter bunsetsu of not-to-be-tested morphemes:
+        .filter(m => m && !(m.partOfSpeech[0] === 'supplementary_symbol') &&
+                                 !(m.partOfSpeech[0] === 'particle' && m.partOfSpeech[1] === 'phrase_final'))
+        */
       } else {
         // only add particles if they're NOT inside conjugated phrases
         this.particleMorphemes = this.particleMorphemes.concat(bunsetsu.filter(

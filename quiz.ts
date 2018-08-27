@@ -1,4 +1,5 @@
-import {morphemesEq, ultraCompressMorpheme} from './mecabUnidic';
+import {cliPrompt} from './cliPrompt';
+import {MaybeMorpheme, ultraCompressMorpheme} from './mecabUnidic';
 import {
   BunsetsuBlock,
   Content,
@@ -22,6 +23,41 @@ function argmin<T>(arr: T[], map: (element: T) => number): [T|undefined, number,
     }
   }
   return [smallestElement, smallestMapped, smallestIdx];
+}
+
+async function administerQuiz(toQuiz: Quizzable, mode: string) {
+  if (toQuiz instanceof SentenceBlock) {
+    if (mode === 'particle') {
+      let particles = new Set(toQuiz.particleMorphemes.map(ultraCompressMorpheme));
+      let particleNumber = 1;
+      for (let m of toQuiz.morphemes) {
+        if (particles.has(ultraCompressMorpheme(m))) {
+          console.log(`(${particleNumber++})`);
+        } else {
+          console.log(m && m.literal);
+        }
+      }
+    } else if (mode === 'conjugation') {
+      const bunsetsuToString = (b: MaybeMorpheme[]) => b.map(m => m && m.literal).join('');
+      let bunsetsus = new Set(toQuiz.conjugatedBunsetsus.map(bunsetsuToString));
+      let number = 1;
+      for (let b of toQuiz.bunsetsus) {
+        if (bunsetsus.has(bunsetsuToString(b))) {
+          console.log(`(${number++})`);
+        } else {
+          console.log(bunsetsuToString(b));
+        }
+      }
+    } else {
+      throw new Error('unknown mode for Sentence quiz');
+    }
+  } else if (toQuiz instanceof VocabBlock) {
+    throw new Error('Unimplemented');
+  } else {
+    throw new Error('Unadministerable quiz type');
+  }
+  let input: string = await cliPrompt();
+  return input;
 }
 
 const USAGE = `USAGE:
@@ -64,26 +100,28 @@ if (require.main === module) {
         console.log('Nothing to review. Learn something and try again.')
         process.exit(0);
       }
-      console.log('Going to quiz:', toQuiz)
+      // console.log('Going to quiz:', toQuiz)
       if (toQuiz instanceof MorphemeBlock) {
         let targetMorpheme = ultraCompressMorpheme(toQuiz.morpheme);
         let candidateSentences =
             learnedSentences.filter(o => o.particleMorphemes.some(m => ultraCompressMorpheme(m) === targetMorpheme));
-        console.log('Can quiz with:', candidateSentences.map(o => o.sentence));
-      }
-      else if (toQuiz instanceof BunsetsuBlock) {
+        console.log('Can quiz with:', candidateSentences.map(o => o.sentence), 'particle');
+        if (!candidateSentences.length) { throw new Error('no candidate sentences found'); }
+        let response = await administerQuiz(candidateSentences[0], 'particle');
+        console.log('Got: ', response);
+      } else if (toQuiz instanceof BunsetsuBlock) {
         let raw = toQuiz.bunsetsu.map(o => o ? o.literal : '').join('');
         let candidateSentences = learnedSentences.filter(o => o.sentence.includes(raw));
-        console.log('Can quiz with:', candidateSentences.map(o => o.sentence));
-      }
-      else if (toQuiz instanceof VocabBlock) {
+        if (!candidateSentences.length) { throw new Error('no candidate sentences found'); }
+        console.log('Can quiz with:', candidateSentences.map(o => o.sentence), 'conjugation');
+        let response = await administerQuiz(candidateSentences[0], 'conjugation');
+        console.log('Got: ', response);
+      } else if (toQuiz instanceof VocabBlock) {
         let probabilities = toQuiz.predictAll(now);
         let [minProb, _, minProbIdx] = argmin(probabilities, x => x);
-      }
-      else if (toQuiz instanceof SentenceBlock) {
+      } else if (toQuiz instanceof SentenceBlock) {
         // This will only happen for a sentence without conjugated bunsetsu or particle morphemes, but it may happen.
-      }
-      else {
+      } else {
         throw new Error('Unhandled quiz type');
       }
     } else if (mode === 'learn') {
