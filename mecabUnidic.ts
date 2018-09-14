@@ -274,6 +274,11 @@ export interface Morpheme {
   inflection: string[]|null;
 }
 export type MaybeMorpheme = Morpheme|null;
+export function maybeMorphemesToMorphemes(v: MaybeMorpheme[]): Morpheme[] { return v.filter(o => !!o) as Morpheme[]; }
+export function maybeMorphemeToMorpheme(o: MaybeMorpheme): Morpheme {
+  if (o) { return o; }
+  throw new Error('Invalid morpheme found');
+}
 export function morphemesEq(x: MaybeMorpheme, y: MaybeMorpheme): boolean {
   return !!x && !!y && ultraCompressMorpheme(x) === ultraCompressMorpheme(y);
 }

@@ -4,7 +4,9 @@ import {
   decompressMorpheme,
   decompressMorphemes,
   invokeMecab,
-  MaybeMorpheme,
+  maybeMorphemesToMorphemes,
+  maybeMorphemeToMorpheme,
+  Morpheme,
   parseMecab,
   ultraCompressMorpheme,
   ultraCompressMorphemes
@@ -81,9 +83,9 @@ function hasSingleEbisu(block: string[]): Ebisu|undefined {
 export class MorphemeBlock extends Quizzable {
   block: string[];
   static init: string = '- ◊morpheme';
-  morpheme: MaybeMorpheme;
+  morpheme: Morpheme;
   ebisu?: Ebisu;
-  constructor(block?: string[], morpheme?: MaybeMorpheme, d?: Date) {
+  constructor(block?: string[], morpheme?: Morpheme, d?: Date) {
     super();
     if (morpheme) {
       this.morpheme = morpheme;
@@ -94,7 +96,7 @@ export class MorphemeBlock extends Quizzable {
       }
     } else {
       if (block) {
-        this.morpheme = decompressMorpheme(block[0].slice(MorphemeBlock.init.length).trim());
+        this.morpheme = maybeMorphemeToMorpheme(decompressMorpheme(block[0].slice(MorphemeBlock.init.length).trim()));
         this.block = block;
       } else {
         throw new Error('Either block or morpheme or both required');
@@ -113,9 +115,9 @@ export class MorphemeBlock extends Quizzable {
 export class BunsetsuBlock extends Quizzable {
   block: string[];
   static init: string = '- ◊bunsetsu';
-  bunsetsu: MaybeMorpheme[];
+  bunsetsu: Morpheme[];
   ebisu?: Ebisu;
-  constructor(block?: string[], bunsetsu?: MaybeMorpheme[]) {
+  constructor(block?: string[], bunsetsu?: Morpheme[]) {
     super();
     if (bunsetsu) {
       this.bunsetsu = bunsetsu;
@@ -126,7 +128,8 @@ export class BunsetsuBlock extends Quizzable {
       }
     } else {
       if (block) {
-        this.bunsetsu = decompressMorphemes(block[0].slice(BunsetsuBlock.init.length).trim());
+        this.bunsetsu =
+            maybeMorphemesToMorphemes(decompressMorphemes(block[0].slice(BunsetsuBlock.init.length).trim()));
         this.block = block;
       } else {
         throw new Error('Either block or morpheme or both required');
@@ -145,10 +148,10 @@ export class BunsetsuBlock extends Quizzable {
 export class SentenceBlock extends Quizzable {
   block: string[];
   sentence: string;
-  morphemes: MaybeMorpheme[] = [];
-  bunsetsus: MaybeMorpheme[][] = [];
-  conjugatedBunsetsus: MaybeMorpheme[][] = [];
-  particleMorphemes: MaybeMorpheme[] = [];
+  morphemes: Morpheme[] = [];
+  bunsetsus: Morpheme[][] = [];
+  conjugatedBunsetsus: Morpheme[][] = [];
+  particleMorphemes: Morpheme[] = [];
   ebisu?: Ebisu;
   static init: string = '- ◊sent';
   static morphemeStart = '  - ◊morpheme ';
@@ -170,9 +173,9 @@ export class SentenceBlock extends Quizzable {
     }
     return Infinity;
   }
-  blockToMorphemes(): MaybeMorpheme[] {
+  blockToMorphemes(): Morpheme[] {
     return this.block.filter(s => s.startsWith(SentenceBlock.morphemeStart))
-        .map(s => decompressMorpheme(s.slice(SentenceBlock.morphemeStart.length)));
+        .map(s => maybeMorphemeToMorpheme(decompressMorpheme(s.slice(SentenceBlock.morphemeStart.length))));
   }
   findAndParseBunsetsuLine(): string[] {
     let line = this.block.find(s => s.startsWith(SentenceBlock.bunsetsuStart)) || '';
@@ -181,25 +184,24 @@ export class SentenceBlock extends Quizzable {
   hasParsed(): boolean {
     let morphemes = this.blockToMorphemes();
     if (morphemes.length === 0) { return false; }
-    let reconstructed = morphemes.map(m => m && m.literal).join('');
+    let reconstructed = morphemes.map(m => m.literal).join('');
     let bunsetsuReconstructed = this.findAndParseBunsetsuLine().join('');
     return (reconstructed === this.sentence) && (bunsetsuReconstructed === this.sentence);
   }
   saveParsed(): void {
     for (let m of this.morphemes) { this.block.push(SentenceBlock.morphemeStart + ultraCompressMorpheme(m)); }
-    this.block.push(
-        SentenceBlock.bunsetsuStart +
-        this.bunsetsus.map(v => v.filter(o => o).map(o => o && o.literal).join('')).join(SentenceBlock.bunSep));
-    for (let m of this.particleMorphemes) { this.block.push(SentenceBlock.particleMorphemeStart + (m && m.literal)) }
+    this.block.push(SentenceBlock.bunsetsuStart +
+                    this.bunsetsus.map(v => v.filter(o => o).map(o => o.literal).join('')).join(SentenceBlock.bunSep));
+    for (let m of this.particleMorphemes) { this.block.push(SentenceBlock.particleMorphemeStart + (m.literal)) }
     for (let b of this.conjugatedBunsetsus) {
-      this.block.push(SentenceBlock.conjugatedBunsetsuStart + b.map(o => o && o.literal).join(''));
+      this.block.push(SentenceBlock.conjugatedBunsetsuStart + b.map(o => o.literal).join(''));
     }
   }
   async parse(): Promise<boolean> {
     if (!this.hasParsed()) {
       let text = this.block[0].split(' ').slice(2).join(' ');
       let rawMecab = await invokeMecab(text.trim());
-      this.morphemes = parseMecab(text, rawMecab)[0].filter(o => o);
+      this.morphemes = maybeMorphemesToMorphemes(parseMecab(text, rawMecab)[0].filter(o => !!o));
       await this.addJdepp(rawMecab);
       this.identifyQuizItems();
       this.saveParsed();
@@ -262,7 +264,7 @@ export class SentenceBlock extends Quizzable {
       } else {
         // only add particles if they're NOT inside conjugated phrases
         this.particleMorphemes = this.particleMorphemes.concat(bunsetsu.filter(
-            m => m && m.partOfSpeech[0].startsWith('particle') && !m.partOfSpeech[1].startsWith('phrase_final')))
+            m => m.partOfSpeech[0].startsWith('particle') && !m.partOfSpeech[1].startsWith('phrase_final')))
       }
     }
   }
@@ -326,7 +328,7 @@ async function parseAndUpdate(content: Content[]): Promise<Content[]> {
   }
 
   // For each sentence, make new `MorphemeBlock`s/`BunsetsuBlock`s as needed
-  const looper = (mb: MaybeMorpheme|MaybeMorpheme[]) => {
+  const looper = (mb: Morpheme|Morpheme[]) => {
     let o = mb instanceof Array ? new BunsetsuBlock(undefined, mb) : new MorphemeBlock(undefined, mb);
     if (!morphemeBunsetsuToIdx.has(o.block[0])) {
       morphemeBunsetsuToIdx.set(o.block[0], content.length);
@@ -351,7 +353,7 @@ if (require.main === module) {
     content = await parseAndUpdate(content);
 
     // Print, and create new blocks as needed
-    const morphemesToTsv = (b: MaybeMorpheme[]) => b.map(ultraCompressMorpheme).join('\n');
+    const morphemesToTsv = (b: Morpheme[]) => b.map(ultraCompressMorpheme).join('\n');
     let sentences: SentenceBlock[] = content.filter(o => o instanceof SentenceBlock) as SentenceBlock[];
     for (let s of sentences) {
       console.log(s.block[0]);
