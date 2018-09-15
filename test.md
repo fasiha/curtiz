@@ -26,12 +26,6 @@ Also we can use `◊Cf` module to explicitly link a sentence to a vocabulary ite
 - 私 は │ 男 が │ 自転車 を │ 盗む の を │ 見 ました 。
   - I saw a man stealing a bicycle (p68, Kamiya, Verb)
 
-- ◊sent 山田は先生にほめられた。
-  - ◊Ebisu1 2018-07-26T21:20:00.000Z; 4.4,3.4,5.5
-- ◊sent 昨日から急に寒くなった。
-- ◊sent 雪が降り始めました
-- ◊sent 私は男が自転車を盗むのを見ました。
-
 I could cloze-delete the adjective/adverb/verb-headed bunsetsu, and give the English translation, and potentially a list of lemmas, and ask to fill in the entire agglutinated bunsetsu.
 
 Ok, how does grading work? We could grade each sentence. And we should, but we should have a separte section at the bottom of the file for
@@ -48,12 +42,9 @@ Ok, how does grading work? We could grade each sentence. And we should, but we s
   - JMdict has よさ/良さ.
 
 - ◊vocab べんごし: lawyer: 弁護士
-  - ◊Ebisu1 2018-07-26T21:20:00.000Z; 4.4,3.4,5.5; 5.5,6.6,7.7; 8.8,9.9,101.2
 - ◊sent スミスさんはABCフウズの弁護士です。
-  - ◊Ebisu1 2018-07-26T21:20:00.000Z; 4.4,3.4,5.5
   - ◊Cf: 弁護士
 - ◊sent こちらはのぞみデパートのたかはしさんです。
-  - ◊Ebisu1 2018-07-26T21:20:00.000Z; 4.4,3.4,5.5
 - ◊vocab かいしゃ: office: 会社
 - ◊vocab しごと: work: 仕事
 - ◊vocab じ: o'clock: 時
@@ -89,7 +80,10 @@ Kawashima, p121
 Kawashima, p120
 - ◊sent 見てごらん、この池にコイがたくさんいるよ。
 
-
+- ◊sent 山田は先生にほめられた。
+- ◊sent 昨日から急に寒くなった。
+- ◊sent 雪が降り始めました
+- ◊sent 私は男が自転車を盗むのを見ました。
 
 Adjectivals:
 - ◊sent 景色が良くてたくさん写真をとった。

@@ -1,5 +1,6 @@
 import {fill} from './cliFillInTheBlanks';
 import {cliPrompt} from './cliPrompt';
+import {Ebisu} from './ebisu';
 import {Morpheme, ultraCompressMorpheme, ultraCompressMorphemes} from './mecabUnidic';
 import {argmin, enumerate, fillHoles, zip} from './utils';
 import {
@@ -11,6 +12,12 @@ import {
   SentenceBlock,
   VocabBlock
 } from './validateMarkdown';
+
+const bunsetsuToString = (morphemes: Morpheme[]) => morphemes.map(m => m.literal).join('');
+const morphemesToTsv = (b: Morpheme[]) => b.map(ultraCompressMorpheme).join('\n');
+const ensureFinalNewline = (s: string) => s.endsWith('\n') ? s : s + '\n';
+const contentToString = (content: Array<Content>) =>
+    ensureFinalNewline(content.map(o => (o instanceof Array ? o : o.block).join('\n')).join('\n'));
 
 async function cloze(clozes: Array<string|null>): Promise<string[]> {
   let numberOfParticles = 0;
@@ -42,8 +49,6 @@ async function cloze(clozes: Array<string|null>): Promise<string[]> {
   });
   return responses;
 }
-
-const bunsetsuToString = (morphemes: Morpheme[]) => morphemes.map(m => m.literal).join('');
 
 function gradeQuiz(quizzables: Quizzable[], input: string[], toQuiz: Quizzable, mode?: string): boolean[] {
   let now = new Date();
@@ -159,7 +164,6 @@ if (require.main === module) {
 
     const DEBUG = true;
     let learned: Quizzable[] = content.filter(o => o instanceof Quizzable && o.ebisu) as Quizzable[];
-    console.log("# LEARNED", learned)
     let learnedSentences: SentenceBlock[] = learned.filter(o => o instanceof SentenceBlock) as SentenceBlock[];
     await Promise.all(learnedSentences.map(o => o.parse()));
 
@@ -176,7 +180,7 @@ if (require.main === module) {
         toQuiz = learned.find(o => o instanceof MorphemeBlock);
         toQuiz = learned.find(o => o instanceof BunsetsuBlock);
         // toQuiz = learned.find(o => o instanceof VocabBlock);
-        console.log(toQuiz);
+        console.log('toQuiz!!', toQuiz);
       }
       if (!toQuiz) {
         console.log('Nothing to review. Learn something and try again.')
@@ -232,11 +236,36 @@ if (require.main === module) {
       } else {
         throw new Error('Unhandled quiz type');
       }
-      const ensureFinalNewline = (s: string) => s.endsWith('\n') ? s : s + '\n';
-      const contentToString = (content: Array<Content>) =>
-          ensureFinalNewline(content.map(o => (o instanceof Array ? o : o.block).join('\n')).join('\n'));
       writeFile('testPostQuiz.md', contentToString(content));
     } else if (mode === 'learn') {
+      let toLearn: VocabBlock|SentenceBlock|undefined =
+          content.find(o => o instanceof VocabBlock || o instanceof SentenceBlock) as
+          (VocabBlock | SentenceBlock | undefined);
+      if (!toLearn) {
+        console.log('Nothing to learn!');
+        process.exit(0);
+        return;
+      }
+      console.log('Learn this:');
+      if (toLearn instanceof SentenceBlock) {
+        console.log('>> ' + toLearn.sentence);
+        if (toLearn.bunsetsus && toLearn.bunsetsus.length > 0) {
+          console.log(toLearn.bunsetsus.map(morphemesToTsv).join('\n---\n'));
+          console.log(
+              toLearn.conjugatedBunsetsus.map(s => ('>>' + morphemesToTsv(s)).replace(/\n/g, '\n  ')).join('\n'));
+        }
+        if (toLearn.particleMorphemes && toLearn.particleMorphemes.length > 0) {
+          console.log(('..' + morphemesToTsv(toLearn.particleMorphemes)).replace(/\n/g, '\n..'));
+        }
+      } else if (toLearn instanceof VocabBlock) {
+        console.log(`${toLearn.reading}: ${toLearn.translation || ''}: ${toLearn.kanji || ''}`);
+      } else {
+        throw new Error('unknown type to learn');
+      }
+      await cliPrompt('Enter to indicate you have learned this');
+      toLearn.learn();
+      toLearn.updateBlock();
+      writeFile('testPostQuiz.md', contentToString(content));
     } else {
       console.error('Unknown mode. See usage below.');
       console.error(USAGE);

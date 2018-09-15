@@ -13,6 +13,7 @@ import {
 } from './mecabUnidic';
 import {enumerate, zip} from './utils';
 
+const DEFAULT_HALFLIFE_HOURS = 0.25;
 const ebisuVersion = '1';
 const ebisuInit: string = '  - ◊Ebisu' + ebisuVersion + ' ';
 const ebisuDateSeparator = ';';
@@ -22,6 +23,7 @@ export abstract class Quizzable {
   abstract predict(now?: Date): number;
   abstract extractEbisu(): void;
   abstract updateBlock(): void;
+  abstract learn(): void;
 }
 export type Content = VocabBlock|SentenceBlock|MorphemeBlock|BunsetsuBlock|string[];
 
@@ -70,6 +72,7 @@ export class VocabBlock extends Quizzable {
       }
     }
   }
+  learn() { this.ebisu = 'reading,translation,kanji'.split(',').map(_ => Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS)); }
 }
 
 function hasSingleEbisu(block: string[]): Ebisu|undefined {
@@ -115,7 +118,9 @@ export class MorphemeBlock extends Quizzable {
       }
     }
   }
+  learn() { this.ebisu = Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS); }
 }
+
 export class BunsetsuBlock extends Quizzable {
   block: string[];
   static init: string = '- ◊bunsetsu';
@@ -155,6 +160,7 @@ export class BunsetsuBlock extends Quizzable {
       }
     }
   }
+  learn() { this.ebisu = Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS); }
 }
 export class SentenceBlock extends Quizzable {
   block: string[];
@@ -286,6 +292,7 @@ export class SentenceBlock extends Quizzable {
       }
     }
   }
+  learn() { this.ebisu = Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS); }
 }
 
 export function linesToBlocks(lines: string[]): Content[] {
