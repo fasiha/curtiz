@@ -147,9 +147,9 @@ async function administerQuiz(toQuiz: Quizzable, mode?: string): Promise<string[
 const USAGE = `USAGE:
 For a quiz:
     $ node [this-script.js] quiz [markdown.md]
-For explicitly learning:
-    $ node [this-script.js] learn [markdown.md] [n]
-where optional 'n' denotes how many unlearned quizzes to skip from the top.`;
+For learning:
+    $ node [this-script.js] learn [markdown.md]
+Either of these will overwrite markdown.md (after creating markdown.md.bak backup).`;
 if (require.main === module) {
   const promisify = require('util').promisify;
   const readFile = promisify(require('fs').readFile);
@@ -159,10 +159,13 @@ if (require.main === module) {
       console.log(USAGE);
       process.exit(1);
     }
-    let filename = process.argv[3];
-    let content: Content[] = linesToBlocks((await readFile(filename, 'utf8')).split('\n'));
+    // Read file and create backup
+    const filename = process.argv[3];
+    const text = await readFile(filename, 'utf8');
+    writeFile(filename + '.bak', text);
+    let content: Content[] = linesToBlocks(text.split('\n'));
 
-    const DEBUG = true;
+    const DEBUG = !true;
     let learned: Quizzable[] = content.filter(o => o instanceof Quizzable && o.ebisu) as Quizzable[];
     let learnedSentences: SentenceBlock[] = learned.filter(o => o instanceof SentenceBlock) as SentenceBlock[];
     await Promise.all(learnedSentences.map(o => o.parse()));
@@ -175,12 +178,10 @@ if (require.main === module) {
         let toQuizIdx: number;
         let predictedRecall: number;
         [toQuiz, predictedRecall, toQuizIdx] = argmin(learned, o => o.predict(now));
-        console.log(`The following quiz has recall probability ${predictedRecall}:`, JSON.stringify(toQuiz, null, 1));
       } else {
         toQuiz = learned.find(o => o instanceof MorphemeBlock);
         toQuiz = learned.find(o => o instanceof BunsetsuBlock);
         // toQuiz = learned.find(o => o instanceof VocabBlock);
-        console.log('toQuiz!!', toQuiz);
       }
       if (!toQuiz) {
         console.log('Nothing to review. Learn something and try again.')
@@ -236,7 +237,7 @@ if (require.main === module) {
       } else {
         throw new Error('Unhandled quiz type');
       }
-      writeFile('testPostQuiz.md', contentToString(content));
+      writeFile(filename, contentToString(content));
     } else if (mode === 'learn') {
       let toLearn: VocabBlock|SentenceBlock|undefined =
           content.find(o => o instanceof VocabBlock || o instanceof SentenceBlock) as
@@ -265,7 +266,7 @@ if (require.main === module) {
       await cliPrompt('Enter to indicate you have learned this');
       toLearn.learn();
       toLearn.updateBlock();
-      writeFile('testPostQuiz.md', contentToString(content));
+      writeFile(filename, contentToString(content));
     } else {
       console.error('Unknown mode. See usage below.');
       console.error(USAGE);

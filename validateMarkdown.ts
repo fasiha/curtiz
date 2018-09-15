@@ -367,29 +367,35 @@ async function parseAndUpdate(content: Content[]): Promise<Content[]> {
   return content;
 }
 
+const ensureFinalNewline = (s: string) => s.endsWith('\n') ? s : s + '\n';
+const contentToString = (content: Array<Content>) =>
+    ensureFinalNewline(content.map(o => (o instanceof Array ? o : o.block).join('\n')).join('\n'));
+
+const USAGE = `USAGE:
+$ node [this-script.js] [markdown.md]
+will validate markdown.md in-place (after creating a markdown.md.bak).`;
+
 if (require.main === module) {
   const promisify = require('util').promisify;
   const readFile = promisify(require('fs').readFile);
   const writeFile = promisify(require('fs').writeFile);
   (async function() {
-    let txt: string = await readFile('test.md', 'utf8');
-    let lines = txt.split('\n');
-    let content = linesToBlocks(lines);
+    if (process.argv.length < 3) {
+      console.log(USAGE);
+      process.exit(1);
+      return;
+    }
+    // Read Markdown
+    const filename = process.argv[2];
+    let txt: string = await readFile(filename, 'utf8');
+    // Save backup (no await, just run this later)
+    writeFile(filename + '.bak', txt);
+
+    // Validate it
+    let content = linesToBlocks(txt.split('\n'));
     content = await parseAndUpdate(content);
 
-    // Print, and create new blocks as needed
-    const morphemesToTsv = (b: Morpheme[]) => b.map(ultraCompressMorpheme).join('\n');
-    let sentences: SentenceBlock[] = content.filter(o => o instanceof SentenceBlock) as SentenceBlock[];
-    for (let s of sentences) {
-      console.log(s.block[0]);
-      console.log(s.bunsetsus.map(morphemesToTsv).join('\n---\n'));
-      console.log(('..' + morphemesToTsv(s.particleMorphemes)).replace(/\n/g, '\n..'));
-      console.log(s.conjugatedBunsetsus.map(s => ('>>' + morphemesToTsv(s)).replace(/\n/g, '\n  ')).join('\n'));
-    }
     // Save file
-    const ensureFinalNewline = (s: string) => s.endsWith('\n') ? s : s + '\n';
-    const contentToString = (content: Array<Content>) =>
-        ensureFinalNewline(content.map(o => (o instanceof Array ? o : o.block).join('\n')).join('\n'));
-    writeFile('test2.md', contentToString(content));
+    writeFile(filename, contentToString(content));
   })();
 }
