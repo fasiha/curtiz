@@ -11,23 +11,17 @@ import {
   ultraCompressMorpheme,
   ultraCompressMorphemes
 } from './mecabUnidic';
-
-function* enumerate<T>(v: T[]): IterableIterator<[number, T]> {
-  for (let n = 0; n < v.length; n++) { yield [n, v[n]]; }
-}
-function* zip(...arrs: any[][]) {
-  const stop = Math.min(...arrs.map(v => v.length));
-  for (let i = 0; i < stop; i++) { yield arrs.map(v => v[i]); }
-}
+import {enumerate, zip} from './utils';
 
 const ebisuVersion = '1';
 const ebisuInit: string = '  - ◊Ebisu' + ebisuVersion + ' ';
 const ebisuDateSeparator = ';';
-const millisecondsPerHour = 3600e3;
+const ebisuSuperSeparator = ';';
 
 export abstract class Quizzable {
-  abstract predict(now?: number): number;
+  abstract predict(now?: Date): number;
   abstract extractEbisu(): void;
+  abstract updateBlock(): void;
 }
 export type Content = VocabBlock|SentenceBlock|MorphemeBlock|BunsetsuBlock|string[];
 
@@ -53,7 +47,6 @@ export class VocabBlock extends Quizzable {
     this.extractEbisu();
   }
   extractEbisu() {
-    const ebisuSuperSeparator = ';';
     let line = this.block.find(line => line.startsWith(ebisuInit));
     if (typeof line === 'undefined') {
       this.ebisu = undefined;
@@ -64,15 +57,19 @@ export class VocabBlock extends Quizzable {
     let eSubstrings = eString.slice(eDate.length + ebisuDateSeparator.length).split(ebisuSuperSeparator);
     this.ebisu = eSubstrings.map(s => Ebisu.fromString(eDate + Ebisu.fieldSeparator + s));
   }
-  predictAll(now?: number): number[] {
+  predict(now?: Date): number { return this.ebisu ? Math.min(...this.ebisu.map(o => o.predict(now))) : Infinity; }
+  updateBlock() {
     if (this.ebisu) {
-      // all ebisu objects in this.ebisu have same lastDate, so pick the first
-      let elapsedHours = ((now || Date.now()) - this.ebisu[0].lastDate.valueOf()) / millisecondsPerHour;
-      return this.ebisu.map(e => e.predict(elapsedHours));
+      let eString = ebisuInit + this.ebisu[0].lastDate.toISOString() + ebisuDateSeparator + ' ' +
+                    this.ebisu.map(e => e.modelToString()).join(ebisuSuperSeparator);
+      let eIndex = this.block.findIndex(line => line.startsWith(ebisuInit));
+      if (eIndex >= 0) {
+        this.block[eIndex] = eString;
+      } else {
+        this.block.push(eString);
+      }
     }
-    return [];
   }
-  predict(now?: number): number { return this.ebisu ? Math.min(...this.predictAll(now)) : Infinity; }
 }
 
 function hasSingleEbisu(block: string[]): Ebisu|undefined {
@@ -105,11 +102,18 @@ export class MorphemeBlock extends Quizzable {
     this.extractEbisu();
   }
   extractEbisu() { this.ebisu = hasSingleEbisu(this.block); }
-  predict(now?: number): number {
+  predict(now?: Date): number { return this.ebisu ? this.ebisu.predict(now) : Infinity; }
+  updateBlock() {
     if (this.ebisu) {
-      return this.ebisu.predict(((now || Date.now()) - this.ebisu.lastDate.valueOf()) / millisecondsPerHour);
+      let eStrings = this.ebisu.toString();
+      let eString = ebisuInit + eStrings[0] + ebisuDateSeparator + ' ' + eStrings[1];
+      let eIndex = this.block.findIndex(line => line.startsWith(ebisuInit));
+      if (eIndex >= 0) {
+        this.block[eIndex] = eString;
+      } else {
+        this.block.push(eString);
+      }
     }
-    return Infinity;
   }
 }
 export class BunsetsuBlock extends Quizzable {
@@ -138,11 +142,18 @@ export class BunsetsuBlock extends Quizzable {
     this.extractEbisu();
   }
   extractEbisu() { this.ebisu = hasSingleEbisu(this.block); }
-  predict(now?: number): number {
+  predict(now?: Date): number { return this.ebisu ? this.ebisu.predict(now) : Infinity; }
+  updateBlock() {
     if (this.ebisu) {
-      return this.ebisu.predict(((now || Date.now()) - this.ebisu.lastDate.valueOf()) / millisecondsPerHour);
+      let eStrings = this.ebisu.toString();
+      let eString = ebisuInit + eStrings[0] + ebisuDateSeparator + ' ' + eStrings[1];
+      let eIndex = this.block.findIndex(line => line.startsWith(ebisuInit));
+      if (eIndex >= 0) {
+        this.block[eIndex] = eString;
+      } else {
+        this.block.push(eString);
+      }
     }
-    return Infinity;
   }
 }
 export class SentenceBlock extends Quizzable {
@@ -167,11 +178,18 @@ export class SentenceBlock extends Quizzable {
     this.extractEbisu();
   }
   extractEbisu() { this.ebisu = hasSingleEbisu(this.block); }
-  predict(now?: number): number {
+  predict(now?: Date): number { return this.ebisu ? this.ebisu.predict(now) : Infinity; }
+  updateBlock() {
     if (this.ebisu) {
-      return this.ebisu.predict(((now || Date.now()) - this.ebisu.lastDate.valueOf()) / millisecondsPerHour);
+      let eStrings = this.ebisu.toString();
+      let eString = ebisuInit + eStrings[0] + ebisuDateSeparator + ' ' + eStrings[1];
+      let eIndex = this.block.findIndex(line => line.startsWith(ebisuInit));
+      if (eIndex >= 0) {
+        this.block[eIndex] = eString;
+      } else {
+        this.block.push(eString);
+      }
     }
-    return Infinity;
   }
   blockToMorphemes(): Morpheme[] {
     return this.block.filter(s => s.startsWith(SentenceBlock.morphemeStart))

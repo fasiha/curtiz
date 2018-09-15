@@ -20,14 +20,19 @@ export class Ebisu {
     this.lastDate = lastDate;
     this.version = version;
   }
-  predict(elapsed: number) { return predictRecall(this.model, elapsed); }
-  update(result: boolean, elapsed: number, d?: Date) {
-    if (d && !(d instanceof Date)) { throw new Error('d must be instanceof Date'); }
-    this.model = updateRecall(this.model, result, elapsed);
+  static elapsedHours(prev: Date, curr?: Date) {
+    return ((curr ? curr.valueOf() : Date.now()) - prev.valueOf()) / 36e5;
+    // 36e5 milliseconds per hour
+  }
+  predict(d?: Date) { return predictRecall(this.model, Ebisu.elapsedHours(this.lastDate, d)); }
+  update(result: boolean, d?: Date) {
+    // if (d && !(d instanceof Date)) { throw new Error('d must be instanceof Date'); }
+    this.model = updateRecall(this.model, result, Ebisu.elapsedHours(this.lastDate, d));
     this.lastDate = d || new Date();
   }
   static fieldSeparator: string = ',';
-  toString(): string { return [this.lastDate.toISOString(), ...this.model].join(Ebisu.fieldSeparator); }
+  modelToString(): string { return this.model.map(n => n.toExponential(3)).join(Ebisu.fieldSeparator); }
+  toString(): string[] { return [this.lastDate.toISOString(), this.modelToString()]; }
   static fromString(s: string): Ebisu {
     let chunks = s.split(Ebisu.fieldSeparator);
     if (chunks.length !== 4) {
