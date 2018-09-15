@@ -1,5 +1,5 @@
 "use strict";
-const md = require('../validateMarkdown');
+const md = require('../markdown');
 const test = require('tape');
 
 test('Basic sentence block works', async t => {

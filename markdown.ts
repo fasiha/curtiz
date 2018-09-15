@@ -342,7 +342,7 @@ export function linesToBlocks(lines: string[]): Content[] {
   return content;
 }
 
-async function parseAndUpdate(content: Content[]): Promise<Content[]> {
+export async function parseAndUpdate(content: Content[]): Promise<Content[]> {
   let sentences: SentenceBlock[] = content.filter(o => o instanceof SentenceBlock) as SentenceBlock[];
   await Promise.all(sentences.map(s => s.parse()));
 

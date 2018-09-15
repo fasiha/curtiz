@@ -42,19 +42,19 @@ Ok, how does grading work? We could grade each sentence. And we should, but we s
   - JMdict has よさ/良さ.
 
 - ◊vocab べんごし: lawyer: 弁護士
-- ◊sent スミスさんはABCフウズの弁護士です。
+- ◊sent スミスさんはABCフウズの弁護士です。 :: Mr Smith is ABC Foods' lawyer.
   - ◊Cf: 弁護士
-- ◊sent こちらはのぞみデパートのたかはしさんです。
+- ◊sent こちらはのぞみデパートのたかはしさんです。 :: This is Nozomi Department Store's Mr Takahashi.
 - ◊vocab かいしゃ: office: 会社
 - ◊vocab しごと: work: 仕事
 - ◊vocab じ: o'clock: 時
 - ◊vocab から: from (time, place, etc.)
 - ◊vocab まで: until (time), to (place)
-- ◊sent 仕事は9時から5時までです。
+- ◊sent 仕事は9時から5時までです。 :: Work is from 9 o'clock to 5 o'clock.
   - ◊Cf: 仕事, 時/じ, から, まで
-- ◊sent この中で誰が猫の首に鈴を付けに行くんだい？
+- ◊sent この中で誰が猫の首に鈴を付けに行くんだい？ :: Among us, who is going to put the bell around the neck of the cat?
   - ◊Cloze: で,が,の,に,を
-- ◊sent あの壁にかかっている絵はきれいですね。
+- ◊sent あの壁にかかっている絵はきれいですね。 :: The painting hanging on that wall is beautiful eh?
   - ◊Cloze: ◊particles
   - ◊Cloze: ◊conjugations
 
@@ -65,34 +65,32 @@ Ok, how does grading work? We could grade each sentence. And we should, but we s
 - ◊vocab せいと: student: 生徒
 
 Miura, p86:
-- ◊sent 私の小学校では、１クラスに70人以上も生徒がいた。
+- ◊sent 私の小学校では、１クラスに70人以上も生徒がいた。 :: At my elementary school, there were in one class more than seventy students.
   - ◊Cf: 小学校, ~人, 以上, 生徒
 
-Kawashima, DoJP, p19:
-- ◊sent この中で誰が猫の首に鈴を付けに行くんだい？
+Kawashima, DoJP, p19: この中で誰が猫の首に鈴を付けに行くんだい？ (see above)
 
 Kawashima, p120
-- ◊sent 私たちは東京駅の近くに住んでいます。
+- ◊sent 私たちは東京駅の近くに住んでいます。 :: We live near Tokyo Train Station.
 
-Kawashima, p121
-- ◊sent あの壁にかかっている絵はきれいですね。
+Kawashima, p121: あの壁にかかっている絵はきれいですね。 (see above)
 
 Kawashima, p120
-- ◊sent 見てごらん、この池にコイがたくさんいるよ。
+- ◊sent 見てごらん、この池にコイがたくさんいるよ。 :: Look, in this pond there are so many koi.
 
-- ◊sent 山田は先生にほめられた。
-- ◊sent 昨日から急に寒くなった。
-- ◊sent 雪が降り始めました
-- ◊sent 私は男が自転車を盗むのを見ました。
+- ◊sent 山田は先生にほめられた。 :: Yamada was praised by the teacher.
+- ◊sent 昨日から急に寒くなった。 :: Since yesterday it's suddenly cold.
+- ◊sent 雪が降り始めました :: Snow began to fall.
+- ◊sent 私は男が自転車を盗むのを見ました。 :: I saw a man steal a bicycle.
 
 Adjectivals:
-- ◊sent 景色が良くてたくさん写真をとった。
-- ◊sent あのレストランは良かったり悪かったりする。
-- ◊sent この絵のよさがわからない。
-- ◊sent これはそれよりもっと複雑な問題です。
-- ◊sent この仕事は難しいけれども面白いです。
-- ◊sent 本田さんはゴルフが好きなだけだ。上手じゃない。
-- ◊sent あの店のパンは古いことがある。
+- ◊sent 景色が良くてたくさん写真をとった。:: The landscape was good and I took many photos.
+- ◊sent あのレストランは良かったり悪かったりする。:: That restaurant is sometimes good and sometimes bad.
+- ◊sent この絵のよさがわからない。:: I don't understand this painting's merits.
+- ◊sent これはそれよりもっと複雑な問題です。:: This is a more complex question (in homework, etc.) than that.
+- ◊sent この仕事は難しいけれども面白いです。:: This work is difficult but interesting.
+- ◊sent 本田さんはゴルフが好きなだけだ。上手じゃない。:: Mr Honda just likes golf. (He's) not good at it.
+- ◊sent あの店のパンは古いことがある。:: That shop's bread is sometimes old.
 
 So when I see a particle morpheme, am I going to cloze-delete just it (treating it as a "real" particle) or am I going to treat it as part of the adjectival/verbal phrase (bunsetsu) it's in and cloze-delete the whole bunsetsu? And when there's no particles in a bunsetsu, how can I identify adjectival/verbal conjugated phrases?
 - If bunsetsu starts with morpheme whose part-of-speech starts with "verb" or "adjective", it's a conjugated phrase.

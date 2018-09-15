@@ -1,17 +1,17 @@
 import {fill} from './cliFillInTheBlanks';
 import {cliPrompt} from './cliPrompt';
-import {Ebisu} from './ebisu';
-import {Morpheme, ultraCompressMorpheme, ultraCompressMorphemes} from './mecabUnidic';
-import {argmin, enumerate, fillHoles, zip} from './utils';
 import {
   BunsetsuBlock,
   Content,
   linesToBlocks,
   MorphemeBlock,
+  parseAndUpdate,
   Quizzable,
   SentenceBlock,
   VocabBlock
-} from './validateMarkdown';
+} from './markdown';
+import {Morpheme, ultraCompressMorpheme, ultraCompressMorphemes} from './mecabUnidic';
+import {argmin, enumerate, fillHoles} from './utils';
 
 const bunsetsuToString = (morphemes: Morpheme[]) => morphemes.map(m => m.literal).join('');
 const morphemesToTsv = (b: Morpheme[]) => b.map(ultraCompressMorpheme).join('\n');
@@ -165,10 +165,13 @@ if (require.main === module) {
     writeFile(filename + '.bak', text);
     let content: Content[] = linesToBlocks(text.split('\n'));
 
+    // Parses Markdown for morphemes/bunsetsu, and if necessary invokes MeCab/Jdepp, and appends
+    // new morphemes/bunsetsu of interest to the bottom of the file as new flashcards.
+    await parseAndUpdate(content);
+
     const DEBUG = !true;
     let learned: Quizzable[] = content.filter(o => o instanceof Quizzable && o.ebisu) as Quizzable[];
     let learnedSentences: SentenceBlock[] = learned.filter(o => o instanceof SentenceBlock) as SentenceBlock[];
-    await Promise.all(learnedSentences.map(o => o.parse()));
 
     let mode = process.argv[2];
     if (mode === 'quiz') {
