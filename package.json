@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "tape test/*"
+    "test": "tape test/*",
+    "build": "tsc -p ."
   },
   "keywords": [],
   "author": "",

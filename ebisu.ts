@@ -30,6 +30,7 @@ export class Ebisu {
     this.model = updateRecall(this.model, result, Ebisu.elapsedHours(this.lastDate, d));
     this.lastDate = d || new Date();
   }
+  passiveUpdate(d?: Date) { this.lastDate = d || new Date(); }
   static fieldSeparator: string = ',';
   modelToString(): string { return this.model.map(n => n.toExponential(3)).join(Ebisu.fieldSeparator); }
   toString(): string[] { return [this.lastDate.toISOString(), this.modelToString()]; }

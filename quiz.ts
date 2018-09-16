@@ -3,11 +3,11 @@ import {cliPrompt} from './cliPrompt';
 import {
   BunsetsuBlock,
   Content,
-  linesToBlocks,
   MorphemeBlock,
   parseAndUpdate,
   Quizzable,
   SentenceBlock,
+  textToBlocks,
   VocabBlock
 } from './markdown';
 import {Morpheme, ultraCompressMorpheme, ultraCompressMorphemes} from './mecabUnidic';
@@ -50,7 +50,8 @@ async function cloze(clozes: Array<string|null>): Promise<string[]> {
   return responses;
 }
 
-function gradeQuiz(quizzables: Quizzable[], input: string[], toQuiz: Quizzable, mode?: string): boolean[] {
+function gradeQuiz(morphemeBunsetsuMap: Map<string, MorphemeBlock|BunsetsuBlock>, input: string[], toQuiz: Quizzable,
+                   mode?: string): boolean[] {
   let now = new Date();
   let corrects: boolean[] = [];
   if (toQuiz instanceof SentenceBlock) {
@@ -58,13 +59,9 @@ function gradeQuiz(quizzables: Quizzable[], input: string[], toQuiz: Quizzable, 
     toQuiz.ebisu.update(true, now); // Don't passive update this!
     toQuiz.updateBlock();
     if (mode === 'particle') {
-      let stringToMorphemeBlock: Map<string, MorphemeBlock> = new Map([]);
-      for (const q of quizzables) {
-        if (q instanceof MorphemeBlock) { stringToMorphemeBlock.set(ultraCompressMorpheme(q.morpheme), q); }
-      }
       for (let [midx, m] of enumerate(toQuiz.particleMorphemes)) {
         const correct = m.literal === input[midx];
-        let q = stringToMorphemeBlock.get(ultraCompressMorpheme(m));
+        let q = morphemeBunsetsuMap.get(ultraCompressMorpheme(m));
         if (!q) { throw new Error('Morpheme not found in list of quizzables'); }
         if (!q.ebisu) { throw new Error('Ebisu field expected'); }
         q.ebisu.update(correct, now);
@@ -72,14 +69,10 @@ function gradeQuiz(quizzables: Quizzable[], input: string[], toQuiz: Quizzable, 
         corrects.push(correct);
       }
     } else if (mode === 'conjugation') {
-      let stringToBunsetsuBlock: Map<string, BunsetsuBlock> = new Map([]);
-      for (const q of quizzables) {
-        if (q instanceof BunsetsuBlock) { stringToBunsetsuBlock.set(ultraCompressMorphemes(q.bunsetsu), q); }
-      }
       for (let [bidx, b] of enumerate(toQuiz.conjugatedBunsetsus)) {
         // FIXME: DRY with above 'particle' block
         const correct = bunsetsuToString(b) === input[bidx];
-        let q = stringToBunsetsuBlock.get(ultraCompressMorphemes(b));
+        let q = morphemeBunsetsuMap.get(ultraCompressMorphemes(b));
         if (!q) { throw new Error('Bunsetsu not found in list of quizzables'); }
         if (!q.ebisu) { throw new Error('Ebisu field expected'); }
         q.ebisu.update(correct, now);
@@ -92,15 +85,9 @@ function gradeQuiz(quizzables: Quizzable[], input: string[], toQuiz: Quizzable, 
     return corrects;
   } else if (toQuiz instanceof VocabBlock) {
     const correct = input[0] === toQuiz.reading;
-    for (const qq of quizzables) {
-      let q: VocabBlock = qq as VocabBlock;
-      if (toQuiz.reading === q.reading) {
-        if (!q.ebisu) { throw new Error('Ebisu field expected'); }
-        q.ebisu[0].update(correct, now);
-        q.updateBlock();
-        break;
-      }
-    }
+    if (!toQuiz.ebisu) { throw new Error('Ebisu field expected'); }
+    toQuiz.ebisu[0].update(correct, now);
+    toQuiz.updateBlock();
     return [correct];
   }
   throw new Error('Unadministerable quiz type');
@@ -108,13 +95,13 @@ function gradeQuiz(quizzables: Quizzable[], input: string[], toQuiz: Quizzable, 
 
 async function administerQuiz(toQuiz: Quizzable, mode?: string): Promise<string[]> {
   if (toQuiz instanceof SentenceBlock) {
+    console.log('“' + (toQuiz.translation || '') + '”');
     if (mode === 'particle') {
       let particles = new Set(toQuiz.particleMorphemes.map(ultraCompressMorpheme));
       let clozes: (string|null)[] =
           toQuiz.morphemes.map(m => particles.has(ultraCompressMorpheme(m)) ? null : (m ? m.literal : ''));
       let responses: string[] = await cloze(clozes);
       fillHoles(clozes, responses);
-      console.log('quiz responses', responses);
       return responses;
     } else if (mode === 'conjugation') {
       console.log(`(${toQuiz.conjugatedBunsetsus.length} bunsetsu to conjugate)`)
@@ -126,7 +113,6 @@ async function administerQuiz(toQuiz: Quizzable, mode?: string): Promise<string[
       let bunsetsus = new Set(toQuiz.conjugatedBunsetsus.map(bunsetsuToString));
       let clozes = toQuiz.bunsetsus.map(bunsetsuToString).map(s => bunsetsus.has(s) ? null : s);
       let responses: string[] = await cloze(clozes);
-      console.log('quiz responses:', responses);
       return responses;
     } else {
       throw new Error('unknown mode for Sentence quiz');
@@ -138,10 +124,21 @@ async function administerQuiz(toQuiz: Quizzable, mode?: string): Promise<string[
       console.log(`${toQuiz.translation}: enter reading.`);
     }
     let response = await cliPrompt();
-    console.log('quiz responses:', response);
     return [response];
   }
   throw new Error('Unadministerable quiz type');
+}
+
+function compressedToBunsetsuOrMorpheme(content: Content[]): Map<string, BunsetsuBlock|MorphemeBlock> {
+  let stringToMorphemeBunsetsuBlock: Map<string, BunsetsuBlock|MorphemeBlock> = new Map([]);
+  for (const c of content) {
+    if (c instanceof MorphemeBlock) {
+      stringToMorphemeBunsetsuBlock.set(ultraCompressMorpheme(c.morpheme), c);
+    } else if (c instanceof BunsetsuBlock) {
+      stringToMorphemeBunsetsuBlock.set(ultraCompressMorphemes(c.bunsetsu), c);
+    }
+  }
+  return stringToMorphemeBunsetsuBlock;
 }
 
 const USAGE = `USAGE:
@@ -163,7 +160,7 @@ if (require.main === module) {
     const filename = process.argv[3];
     const text = await readFile(filename, 'utf8');
     writeFile(filename + '.bak', text);
-    let content: Content[] = linesToBlocks(text.split('\n'));
+    let content: Content[] = textToBlocks(text);
 
     // Parses Markdown for morphemes/bunsetsu, and if necessary invokes MeCab/Jdepp, and appends
     // new morphemes/bunsetsu of interest to the bottom of the file as new flashcards.
@@ -190,15 +187,7 @@ if (require.main === module) {
         console.log('Nothing to review. Learn something and try again.')
         process.exit(0);
       }
-
-      let learnedStringToQuizzable: Map<string, Quizzable> = new Map([]);
-      for (let q of learned) {
-        if (q instanceof MorphemeBlock) {
-          learnedStringToQuizzable.set(ultraCompressMorpheme(q.morpheme), q);
-        } else if (q instanceof BunsetsuBlock) {
-          learnedStringToQuizzable.set(ultraCompressMorphemes(q.bunsetsu), q);
-        }
-      }
+      let morphemeBunsetsuMap = compressedToBunsetsuOrMorpheme(learned);
 
       if (toQuiz instanceof MorphemeBlock) {
         let targetMorpheme = ultraCompressMorpheme(toQuiz.morpheme);
@@ -209,12 +198,8 @@ if (require.main === module) {
         let sentenceToQuiz = candidateSentences[0];
         let response = await administerQuiz(sentenceToQuiz, 'particle');
 
-        let relevantQuizzables =
-            (sentenceToQuiz.particleMorphemes.map(m => learnedStringToQuizzable.get(ultraCompressMorpheme(m))));
-        if (relevantQuizzables.some(o => !o)) { throw new Error('Sentence has morphemes not being tracked'); }
-        let grades = gradeQuiz(relevantQuizzables as Quizzable[], response, sentenceToQuiz, 'particle');
+        let grades = gradeQuiz(morphemeBunsetsuMap, response, sentenceToQuiz, 'particle');
         console.log('response', response, 'grades', grades);
-
       } else if (toQuiz instanceof BunsetsuBlock) {
         let raw = toQuiz.bunsetsu.map(o => o ? o.literal : '').join('');
         let candidateSentences = learnedSentences.filter(o => o.sentence.includes(raw));
@@ -224,26 +209,37 @@ if (require.main === module) {
         let sentenceToQuiz = candidateSentences[0];
         let response = await administerQuiz(sentenceToQuiz, 'conjugation');
 
-        let relevantQuizzables =
-            (sentenceToQuiz.conjugatedBunsetsus.map(b => learnedStringToQuizzable.get(ultraCompressMorphemes(b))));
-        console.log('rel', relevantQuizzables)
-        if (relevantQuizzables.some(o => !o)) { throw new Error('Sentence has bunsetsu not being tracked'); }
-        let grades = gradeQuiz(relevantQuizzables as Quizzable[], response, sentenceToQuiz, 'conjugation');
+        let grades = gradeQuiz(morphemeBunsetsuMap, response, sentenceToQuiz, 'conjugation');
         console.log('response', response, 'grades', grades);
-
       } else if (toQuiz instanceof VocabBlock) {
         let response = await administerQuiz(toQuiz);
-        let grades = gradeQuiz([toQuiz], response, toQuiz);
+        let grades = gradeQuiz(morphemeBunsetsuMap, response, toQuiz);
         console.log('response', response, 'grades', grades);
       } else if (toQuiz instanceof SentenceBlock) {
         // This will only happen for a sentence without conjugated bunsetsu or particle morphemes, but it may happen.
+        let quizType;
+        if (toQuiz.particleMorphemes.length && toQuiz.conjugatedBunsetsus.length) {
+          quizType = Math.random() < 0.5 ? 'conjugation' : 'particle';
+        } else if (toQuiz.particleMorphemes.length) {
+          quizType = 'particle';
+        } else if (toQuiz.conjugatedBunsetsus.length) {
+          quizType = 'conjugation';
+        } else {
+          throw new Error('Unimplemented: review sentence lacking morphemes/bunsetsu')
+        }
+        let response = await administerQuiz(toQuiz, quizType);
+        let grades = gradeQuiz(morphemeBunsetsuMap, response, toQuiz, quizType);
+        console.log('response', response, 'grades', grades);
       } else {
         throw new Error('Unhandled quiz type');
       }
       writeFile(filename, contentToString(content));
     } else if (mode === 'learn') {
+      //
+      // Learn
+      //
       let toLearn: VocabBlock|SentenceBlock|undefined =
-          content.find(o => o instanceof VocabBlock || o instanceof SentenceBlock) as
+          content.find(o => (o instanceof VocabBlock || o instanceof SentenceBlock) && !o.ebisu) as
           (VocabBlock | SentenceBlock | undefined);
       if (!toLearn) {
         console.log('Nothing to learn!');
@@ -267,8 +263,32 @@ if (require.main === module) {
         throw new Error('unknown type to learn');
       }
       await cliPrompt('Enter to indicate you have learned this');
-      toLearn.learn();
+      const now = new Date();
+      toLearn.learn(now);
       toLearn.updateBlock();
+
+      // Post-learn
+      {
+        let stringToMorphemeBunsetsuBlock = compressedToBunsetsuOrMorpheme(content);
+        if (toLearn instanceof SentenceBlock) {
+          const looper = (key: string) => {
+            let hit = stringToMorphemeBunsetsuBlock.get(key);
+            if (hit) {
+              if (hit.ebisu) {
+                hit.ebisu.passiveUpdate(now);
+              } else {
+                hit.learn(now);
+              }
+              hit.updateBlock();
+            } else {
+              throw new Error('bunsetsu not found');
+            }
+          };
+          toLearn.conjugatedBunsetsus.map(ultraCompressMorphemes).forEach(looper);
+          toLearn.particleMorphemes.map(ultraCompressMorpheme).forEach(looper);
+        }
+      }
+
       writeFile(filename, contentToString(content));
     } else {
       console.error('Unknown mode. See usage below.');

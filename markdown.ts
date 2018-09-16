@@ -13,9 +13,10 @@ import {
 } from './mecabUnidic';
 import {enumerate, zip} from './utils';
 
+const DEFAULT_BUNSETSU_MORPHEME_PREFIX = '#### ';
 const DEFAULT_HALFLIFE_HOURS = 0.25;
 const ebisuVersion = '1';
-const ebisuInit: string = '  - ◊Ebisu' + ebisuVersion + ' ';
+const ebisuInit: string = '- ◊Ebisu' + ebisuVersion + ' ';
 const ebisuDateSeparator = ';';
 const ebisuSuperSeparator = ';';
 
@@ -23,13 +24,15 @@ export abstract class Quizzable {
   abstract predict(now?: Date): number;
   abstract extractEbisu(): void;
   abstract updateBlock(): void;
-  abstract learn(): void;
+  abstract learn(now?: Date): void;
+  abstract block: string[];
+  abstract ebisu?: any;
 }
-export type Content = VocabBlock|SentenceBlock|MorphemeBlock|BunsetsuBlock|string[];
+export type Content = Quizzable|string[];
 
 export class VocabBlock extends Quizzable {
   block: string[];
-  static init: string = '- ◊vocab'
+  static init: string = '◊vocab'
   seperator: string = ': ';
   reading: string;
   translation: string;
@@ -38,7 +41,9 @@ export class VocabBlock extends Quizzable {
   constructor(block: string[]) {
     super();
     this.block = block;
-    let pieces = this.block[0].slice(VocabBlock.init.length).trim().split(this.seperator);
+    const lozengeIdx = block[0].indexOf(VocabBlock.init);
+    if (lozengeIdx < 0) { throw new Error('◊ not found'); }
+    let pieces = block[0].slice(lozengeIdx + VocabBlock.init.length).trim().split(this.seperator);
     if (pieces.length === 2 || pieces.length === 3) {
       this.reading = pieces[0];
       this.translation = pieces[1];
@@ -72,7 +77,10 @@ export class VocabBlock extends Quizzable {
       }
     }
   }
-  learn() { this.ebisu = 'reading,translation,kanji'.split(',').map(_ => Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS)); }
+  learn(now?: Date) {
+    this.ebisu =
+        'reading,translation,kanji'.split(',').map(_ => Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS, undefined, now));
+  }
 }
 
 function hasSingleEbisu(block: string[]): Ebisu|undefined {
@@ -80,23 +88,27 @@ function hasSingleEbisu(block: string[]): Ebisu|undefined {
   if (typeof line === 'undefined') { return undefined; }
   return Ebisu.fromString(line.slice(ebisuInit.length).replace(ebisuDateSeparator, Ebisu.fieldSeparator));
 }
+
 export class MorphemeBlock extends Quizzable {
   block: string[];
-  static init: string = '- ◊morpheme';
+  static init: string = '◊morpheme';
   morpheme: Morpheme;
   ebisu?: Ebisu;
-  constructor(block?: string[], morpheme?: Morpheme, d?: Date) {
+  constructor(block?: string[], morpheme?: Morpheme, prefix = DEFAULT_BUNSETSU_MORPHEME_PREFIX) {
     super();
     if (morpheme) {
       this.morpheme = morpheme;
       if (block) {
         this.block = block;
       } else {
-        this.block = [MorphemeBlock.init + ' ' + ultraCompressMorpheme(morpheme)];
+        this.block = [prefix + MorphemeBlock.init + ' ' + ultraCompressMorpheme(morpheme)];
       }
     } else {
       if (block) {
-        this.morpheme = maybeMorphemeToMorpheme(decompressMorpheme(block[0].slice(MorphemeBlock.init.length).trim()));
+        const lozengeIdx = block[0].indexOf(MorphemeBlock.init);
+        if (lozengeIdx < 0) { throw new Error('◊ not found'); }
+        this.morpheme =
+            maybeMorphemeToMorpheme(decompressMorpheme(block[0].slice(lozengeIdx + MorphemeBlock.init.length).trim()));
         this.block = block;
       } else {
         throw new Error('Either block or morpheme or both required');
@@ -118,27 +130,29 @@ export class MorphemeBlock extends Quizzable {
       }
     }
   }
-  learn() { this.ebisu = Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS); }
+  learn(now?: Date) { this.ebisu = Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS, undefined, now); }
 }
 
 export class BunsetsuBlock extends Quizzable {
   block: string[];
-  static init: string = '- ◊bunsetsu';
+  static init: string = '◊bunsetsu';
   bunsetsu: Morpheme[];
   ebisu?: Ebisu;
-  constructor(block?: string[], bunsetsu?: Morpheme[]) {
+  constructor(block?: string[], bunsetsu?: Morpheme[], prefix = DEFAULT_BUNSETSU_MORPHEME_PREFIX) {
     super();
     if (bunsetsu) {
       this.bunsetsu = bunsetsu;
       if (block) {
         this.block = block;
       } else {
-        this.block = [BunsetsuBlock.init + ' ' + ultraCompressMorphemes(bunsetsu)];
+        this.block = [prefix + BunsetsuBlock.init + ' ' + ultraCompressMorphemes(bunsetsu)];
       }
     } else {
       if (block) {
-        this.bunsetsu =
-            maybeMorphemesToMorphemes(decompressMorphemes(block[0].slice(BunsetsuBlock.init.length).trim()));
+        const lozengeIdx = block[0].indexOf(BunsetsuBlock.init);
+        if (lozengeIdx < 0) { throw new Error('◊ not found'); }
+        this.bunsetsu = maybeMorphemesToMorphemes(
+            decompressMorphemes(block[0].slice(lozengeIdx + BunsetsuBlock.init.length).trim()));
         this.block = block;
       } else {
         throw new Error('Either block or morpheme or both required');
@@ -160,27 +174,34 @@ export class BunsetsuBlock extends Quizzable {
       }
     }
   }
-  learn() { this.ebisu = Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS); }
+  learn(now?: Date) { this.ebisu = Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS, undefined, now); }
 }
 export class SentenceBlock extends Quizzable {
   block: string[];
   sentence: string;
+  translation: string;
   morphemes: Morpheme[] = [];
   bunsetsus: Morpheme[][] = [];
   conjugatedBunsetsus: Morpheme[][] = [];
   particleMorphemes: Morpheme[] = [];
   ebisu?: Ebisu;
-  static init: string = '- ◊sent';
-  static morphemeStart = '  - ◊morpheme ';
-  static bunsetsuStart = '  - ◊bunsetsu ';
+  static init: string = '◊sent';
+  static morphemeStart = '- ◊morpheme ';
+  static bunsetsuStart = '- ◊bunsetsu ';
   static bunSep = ' :: ';
-  static particleMorphemeStart = '  - ◊particle ';
-  static conjugatedBunsetsuStart = '  - ◊conjugated ';
+  static particleMorphemeStart = '- ◊particle ';
+  static conjugatedBunsetsuStart = '- ◊conjugated ';
+  static translationSep = '::';
 
   constructor(block: string[]) {
     super();
     this.block = block;
-    this.sentence = block[0].slice(SentenceBlock.init.length).trim();
+    const lozengeIdx = block[0].indexOf(SentenceBlock.init);
+    if (lozengeIdx < 0) { throw new Error('◊ not found'); }
+    const line = block[0].slice(lozengeIdx + SentenceBlock.init.length);
+    const pieces = line.split(SentenceBlock.translationSep);
+    this.sentence = pieces[0].trim();
+    this.translation = pieces[1] ? pieces[1].trim() : '';
     this.extractEbisu();
   }
   extractEbisu() { this.ebisu = hasSingleEbisu(this.block); }
@@ -223,9 +244,8 @@ export class SentenceBlock extends Quizzable {
   }
   async parse(): Promise<boolean> {
     if (!this.hasParsed()) {
-      let text = this.block[0].split(' ').slice(2).join(' ');
-      let rawMecab = await invokeMecab(text.trim());
-      this.morphemes = maybeMorphemesToMorphemes(parseMecab(text, rawMecab)[0].filter(o => !!o));
+      let rawMecab = await invokeMecab(this.sentence);
+      this.morphemes = maybeMorphemesToMorphemes(parseMecab(this.sentence, rawMecab)[0].filter(o => !!o));
       await this.addJdepp(rawMecab);
       this.identifyQuizItems();
       this.saveParsed();
@@ -292,57 +312,61 @@ export class SentenceBlock extends Quizzable {
       }
     }
   }
-  learn() { this.ebisu = Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS); }
+  learn(now?: Date) { this.ebisu = Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS, undefined, now); }
 }
 
-export function linesToBlocks(lines: string[]): Content[] {
-  let starts: number[] = [];
-  let ends: number[] = [];
+export function textToBlocks(text: string): Content[] {
+  let content: Content[] = [];
 
-  // Find block starts and stops
-  let lino = 0;
-  let inside = false;
-  const inits = [SentenceBlock, MorphemeBlock, BunsetsuBlock, VocabBlock].map(o => o.init);
-  for (let line of lines) {
-    if (inside && !line.startsWith('  - ◊')) {
-      ends.push(lino - 1);
-      inside = false;
-    }
-    if (!inside && line.startsWith('- ◊') && inits.some(init => line.startsWith(init))) {
-      starts.push(lino);
-      inside = true;
-    }
-    lino++;
-  }
-  if (inside) { ends.push(lino - 1); }
+  const headerRegexp = /(#+\s+◊)/;
+  const bulletRegexp = /(\s*-\s+◊)/;
+  let headerLoopRegexp = /(\n#+\s+◊)/g;
+  let start = 0;
+  let stop = -1;
+  let hit;
+  while (start >= 0) {
+    hit = headerLoopRegexp.exec(text);
+    stop = hit ? hit.index : text.length;
 
-  // Then make an array of Contents: actual blocks for quizzing, and just plain Markdown
-  let content: Array<Content> = [];
-  if (starts[0] > 0) { content.push(lines.slice(0, starts[0])); }
-  for (let [start, end, prevEnd] of zip(starts, ends, [-1].concat(ends.slice(0, -1)))) {
-    // push the plain Markdown text before this
-    if (prevEnd > 0 && start !== prevEnd + 1) { content.push(lines.slice(prevEnd + 1, start)); }
+    // piece will either start with the first character of the file, or with a header-lozenge-block
+    let piece = text.slice(start, stop + 1);
+    if (piece.endsWith('\n')) { piece = piece.slice(0, -1); }
+    const lines = piece.split('\n');
+    let endOfBlock = lines.findIndex(s => !(s.match(headerRegexp) || s.match(bulletRegexp)))
+    // last line of file might be header-lozenge-block so:
+    if (endOfBlock < 0) { endOfBlock = lines.length; }
 
-    // Make an object for this block
-    let thisblock = lines.slice(start, end + 1);
-    if (lines[start].startsWith(SentenceBlock.init)) {
-      content.push(new SentenceBlock(thisblock));
-    } else if (lines[start].startsWith(MorphemeBlock.init)) {
-      content.push(new MorphemeBlock(thisblock))
-    } else if (lines[start].startsWith(BunsetsuBlock.init)) {
-      content.push(new BunsetsuBlock(thisblock))
-    } else if (lines[start].startsWith(VocabBlock.init)) {
-      content.push(new VocabBlock(thisblock))
+    if (endOfBlock === 0) {
+      // no lozenge-block found: must be opening text
+      content.push(lines);
     } else {
-      throw new Error('unknown header, did you forget to add a parser for it here?');
+      let block = lines.slice(0, endOfBlock);
+      let restText = lines.slice(endOfBlock);
+      let line = block[0];
+      let lozengeIdx = line.indexOf('◊');
+      line = line.slice(lozengeIdx);
+
+      if (line.startsWith(SentenceBlock.init)) {
+        content.push(new SentenceBlock(block));
+      } else if (line.startsWith(MorphemeBlock.init)) {
+        content.push(new MorphemeBlock(block))
+      } else if (line.startsWith(BunsetsuBlock.init)) {
+        content.push(new BunsetsuBlock(block))
+      } else if (line.startsWith(VocabBlock.init)) {
+        content.push(new VocabBlock(block))
+      } else {
+        throw new Error('unknown header, did you forget to add a parser for it here?');
+      }
+      if (restText.length > 0) { content.push(restText); }
     }
+    start = hit ? stop + 1 : -1;
+    stop = -1;
   }
-  // if there's more content:
-  if (ends[ends.length - 1] < lines.length - 1) { content.push(lines.slice(1 + ends[ends.length - 1])); }
   return content;
 }
 
-export async function parseAndUpdate(content: Content[]): Promise<Content[]> {
+export async function parseAndUpdate(content: Content[],
+                                     prefix = DEFAULT_BUNSETSU_MORPHEME_PREFIX): Promise<Content[]> {
   let sentences: SentenceBlock[] = content.filter(o => o instanceof SentenceBlock) as SentenceBlock[];
   await Promise.all(sentences.map(s => s.parse()));
 
@@ -354,7 +378,7 @@ export async function parseAndUpdate(content: Content[]): Promise<Content[]> {
 
   // For each sentence, make new `MorphemeBlock`s/`BunsetsuBlock`s as needed
   const looper = (mb: Morpheme|Morpheme[]) => {
-    let o = mb instanceof Array ? new BunsetsuBlock(undefined, mb) : new MorphemeBlock(undefined, mb);
+    let o = mb instanceof Array ? new BunsetsuBlock(undefined, mb, prefix) : new MorphemeBlock(undefined, mb, prefix);
     if (!morphemeBunsetsuToIdx.has(o.block[0])) {
       morphemeBunsetsuToIdx.set(o.block[0], content.length);
       content.push(o);
@@ -392,7 +416,7 @@ if (require.main === module) {
     writeFile(filename + '.bak', txt);
 
     // Validate it
-    let content = linesToBlocks(txt.split('\n'));
+    let content = textToBlocks(txt);
     content = await parseAndUpdate(content);
 
     // Save file
