@@ -50,6 +50,11 @@ async function cloze(clozes: Array<string|null>): Promise<string[]> {
   return responses;
 }
 
+function filterJunkMorphemes(b: Morpheme[]): Morpheme[] {
+  return b.filter(m => m && !(m.partOfSpeech[0] === 'supplementary_symbol') &&
+                       !(m.partOfSpeech[0] === 'particle' && m.partOfSpeech[1] === 'phrase_final'));
+}
+
 function gradeQuiz(morphemeBunsetsuMap: Map<string, MorphemeBlock|BunsetsuBlock>, input: string[], toQuiz: Quizzable,
                    mode?: string): boolean[] {
   let now = new Date();
@@ -71,7 +76,7 @@ function gradeQuiz(morphemeBunsetsuMap: Map<string, MorphemeBlock|BunsetsuBlock>
     } else if (mode === 'conjugation') {
       for (let [bidx, b] of enumerate(toQuiz.conjugatedBunsetsus)) {
         // FIXME: DRY with above 'particle' block
-        const correct = bunsetsuToString(b) === input[bidx];
+        const correct = bunsetsuToString(filterJunkMorphemes(b)) === input[bidx];
         let q = morphemeBunsetsuMap.get(ultraCompressMorphemes(b));
         if (!q) { throw new Error('Bunsetsu not found in list of quizzables'); }
         if (!q.ebisu) { throw new Error('Ebisu field expected'); }
@@ -248,14 +253,20 @@ if (require.main === module) {
       }
       console.log('Learn this:');
       if (toLearn instanceof SentenceBlock) {
-        console.log('>> ' + toLearn.sentence);
-        if (toLearn.bunsetsus && toLearn.bunsetsus.length > 0) {
-          console.log(toLearn.bunsetsus.map(morphemesToTsv).join('\n---\n'));
-          console.log(
-              toLearn.conjugatedBunsetsus.map(s => ('>>' + morphemesToTsv(s)).replace(/\n/g, '\n  ')).join('\n'));
-        }
+        console.log(`“${toLearn.sentence}”`);
+        if (toLearn.translation) { console.log(`“${toLearn.translation}”`); }
         if (toLearn.particleMorphemes && toLearn.particleMorphemes.length > 0) {
-          console.log(('..' + morphemesToTsv(toLearn.particleMorphemes)).replace(/\n/g, '\n..'));
+          console.log('Study the following particles:')
+          let prefix = '- ';
+          console.log((prefix + morphemesToTsv(toLearn.particleMorphemes)).replace(/\n/g, `\n${prefix}`));
+        }
+        if (toLearn.bunsetsus && toLearn.bunsetsus.length > 0) {
+          let realPrefix = '= ';
+          let emptyPrefix = ' '.repeat(realPrefix.length);
+          console.log('Understand the following conjugations:')
+          console.log(toLearn.conjugatedBunsetsus.map(b => filterJunkMorphemes(b))
+                          .map(s => (realPrefix + morphemesToTsv(s)).replace(/\n/g, `\n${emptyPrefix}`))
+                          .join('\n'));
         }
       } else if (toLearn instanceof VocabBlock) {
         console.log(`${toLearn.reading}: ${toLearn.translation || ''}: ${toLearn.kanji || ''}`);
