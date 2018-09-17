@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {kata2hira} from './kana';
 import {fill} from './cliFillInTheBlanks';
 import {cliPrompt} from './cliPrompt';
 import {
@@ -90,7 +91,9 @@ function gradeQuiz(morphemeBunsetsuMap: Map<string, MorphemeBlock|BunsetsuBlock>
     }
     return corrects;
   } else if (toQuiz instanceof VocabBlock) {
-    const correct = input[0] === toQuiz.reading;
+    if (input[0].length === 0) { process.exit(0); }
+    const correct =
+        (input[0] === toQuiz.reading) || (input[0] === toQuiz.kanji) || (kata2hira(input[0]) === toQuiz.reading);
     if (!toQuiz.ebisu) { throw new Error('Ebisu field expected'); }
     toQuiz.ebisu[0].update(correct, now);
     toQuiz.updateBlock();

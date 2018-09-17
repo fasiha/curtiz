@@ -9,6 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const kana_1 = require("./kana");
 const cliFillInTheBlanks_1 = require("./cliFillInTheBlanks");
 const cliPrompt_1 = require("./cliPrompt");
 const markdown_1 = require("./markdown");
@@ -102,7 +103,10 @@ function gradeQuiz(morphemeBunsetsuMap, input, toQuiz, mode) {
         return corrects;
     }
     else if (toQuiz instanceof markdown_1.VocabBlock) {
-        const correct = input[0] === toQuiz.reading;
+        if (input[0].length === 0) {
+            process.exit(0);
+        }
+        const correct = (input[0] === toQuiz.reading) || (input[0] === toQuiz.kanji) || (kana_1.kata2hira(input[0]) === toQuiz.reading);
         if (!toQuiz.ebisu) {
             throw new Error('Ebisu field expected');
         }
