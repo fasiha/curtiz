@@ -1,15 +1,19 @@
 {
   "name": "curtiz",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Experimental Markdown-based persistence for Japanese flashcards and quizzes",
+  "main": "curtiz.js",
   "scripts": {
     "test": "tape test/*",
     "build": "tsc -p ."
   },
   "keywords": [],
-  "author": "",
+  "author": "Ahmed Fasih",
   "license": "Unlicense",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fasiha/curtiz.git"
+  },
   "devDependencies": {
     "@types/node": "^10.5.2",
     "get-stdin": "^6.0.0",
