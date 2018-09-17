@@ -1,4 +1,16 @@
 #!/usr/bin/env node
+
+const USAGE = `USAGE:
+For a quiz:
+    $ node [this-script.js] quiz [markdown.md]
+For learning:
+    $ node [this-script.js] learn [markdown.md]
+Either of these will overwrite markdown.md (after creating markdown.md.bak backup).
+
+For Ebisu-related scheduling debug information:
+    $ node [this-script.js] ebisu [markdown.md]
+`;
+
 import {kata2hira} from './kana';
 import {fill} from './cliFillInTheBlanks';
 import {cliPrompt} from './cliPrompt';
@@ -14,6 +26,7 @@ import {
 } from './markdown';
 import {Morpheme, ultraCompressMorpheme, ultraCompressMorphemes} from './mecabUnidic';
 import {argmin, enumerate, fillHoles} from './utils';
+import {Ebisu} from './ebisu';
 
 const bunsetsuToString = (morphemes: Morpheme[]) => morphemes.map(m => m.literal).join('');
 const morphemesToTsv = (b: Morpheme[]) => b.map(ultraCompressMorpheme).join('\n');
@@ -151,12 +164,6 @@ function compressedToBunsetsuOrMorpheme(content: Content[]): Map<string, Bunsets
   return stringToMorphemeBunsetsuBlock;
 }
 
-const USAGE = `USAGE:
-For a quiz:
-    $ node [this-script.js] quiz [markdown.md]
-For learning:
-    $ node [this-script.js] learn [markdown.md]
-Either of these will overwrite markdown.md (after creating markdown.md.bak backup).`;
 if (require.main === module) {
   const promisify = require('util').promisify;
   const readFile = promisify(require('fs').readFile);
@@ -310,7 +317,29 @@ if (require.main === module) {
       let now = new Date();
       let sorted = learned.slice();
       sorted.sort((a, b) => a.predict(now) - b.predict(now));
-      console.log(sorted.map(o => o.predict(now).toExponential(3) + ' ' + o.block[0]).join('\n'));
+
+      // Half-life calculation
+      var minimize = require('minimize-golden-section-1d');
+      function halflife(e: Ebisu): number {
+        let res = minimize((timestamp: number) => Math.abs(0.5 - e.predict(new Date(timestamp))), {
+          lowerBound: e.lastDate.valueOf(),
+          tolerance: 5e3,
+          maxIter: 1000,
+        });
+        if (res < e.lastDate.valueOf()) {
+          // Probably minimize failed to converge and returned function value, see
+          // https://github.com/scijs/minimize-golden-section-1d/issues/2
+          throw new Error('nonsense half-life, did minimize fail to converge?');
+        }
+        return (res - e.lastDate.valueOf()) / 36e5;
+      }
+
+      // Print
+      console.log(sorted
+                      .map(o => 'Precall=' + o.predict(now).toExponential(2) + '  hl=' +
+                                (o.ebisu instanceof Array ? halflife(o.ebisu[0]) : halflife(o.ebisu)).toExponential(2) +
+                                'hours  ' + o.block[0])
+                      .join('\n'));
     } else {
       console.error('Unknown mode. See usage below.');
       console.error(USAGE);
