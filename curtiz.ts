@@ -94,9 +94,7 @@ function gradeQuiz(morphemeBunsetsuMap: Map<string, MorphemeBlock|BunsetsuBlock>
     if (!toQuiz.ebisu) { throw new Error('Ebisu field expected'); }
     toQuiz.ebisu[0].update(correct, now);
     toQuiz.updateBlock();
-    if (!correct) {
-      console.log('Correct answer: ', toQuiz.reading);
-    }
+    if (!correct) { console.log('Correct answer: ', toQuiz.reading); }
     return [correct];
   }
   throw new Error('Unadministerable quiz type');
@@ -305,6 +303,11 @@ if (require.main === module) {
       }
 
       writeFile(filename, contentToString(content));
+    } else if (mode === 'ebisu') {
+      let now = new Date();
+      let sorted = learned.slice();
+      sorted.sort((a, b) => a.predict(now) - b.predict(now));
+      console.log(sorted.map(o => o.predict(now).toExponential(3) + ' ' + o.block[0]).join('\n'));
     } else {
       console.error('Unknown mode. See usage below.');
       console.error(USAGE);

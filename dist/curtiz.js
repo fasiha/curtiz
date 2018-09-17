@@ -330,6 +330,12 @@ if (require.main === module) {
                 }
                 writeFile(filename, contentToString(content));
             }
+            else if (mode === 'ebisu') {
+                let now = new Date();
+                let sorted = learned.slice();
+                sorted.sort((a, b) => a.predict(now) - b.predict(now));
+                console.log(sorted.map(o => o.predict(now).toExponential(3) + ' ' + o.block[0]).join('\n'));
+            }
             else {
                 console.error('Unknown mode. See usage below.');
                 console.error(USAGE);
