@@ -93,6 +93,9 @@ function gradeQuiz(morphemeBunsetsuMap: Map<string, MorphemeBlock|BunsetsuBlock>
     if (!toQuiz.ebisu) { throw new Error('Ebisu field expected'); }
     toQuiz.ebisu[0].update(correct, now);
     toQuiz.updateBlock();
+    if (!correct) {
+      console.log('Correct answer: ', toQuiz.reading);
+    }
     return [correct];
   }
   throw new Error('Unadministerable quiz type');
@@ -124,7 +127,7 @@ async function administerQuiz(toQuiz: Quizzable, mode?: string): Promise<string[
     }
   } else if (toQuiz instanceof VocabBlock) {
     if (toQuiz.kanji) {
-      console.log(`${toQuiz.kanji}（${toQuiz.translation}）: enter reading.`);
+      console.log(`${toQuiz.kanji}: enter reading.`);
     } else {
       console.log(`${toQuiz.translation}: enter reading.`);
     }
