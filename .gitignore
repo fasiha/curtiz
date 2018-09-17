@@ -1,5 +1,7 @@
 node_modules/
 *.js
+!dist/*.js
+!test/*.js
 *.md
 *.bak
 *.txt

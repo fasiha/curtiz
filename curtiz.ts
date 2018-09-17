@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import {fill} from './cliFillInTheBlanks';
 import {cliPrompt} from './cliPrompt';
 import {

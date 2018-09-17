@@ -3,9 +3,13 @@
   "version": "1.0.0",
   "description": "Experimental Markdown-based persistence for Japanese flashcards and quizzes",
   "main": "curtiz.js",
+  "bin": {
+    "curtiz": "./dist/curtiz.js"
+  },
   "scripts": {
     "test": "tape test/*",
-    "build": "tsc -p ."
+    "build": "tsc -p .",
+    "dist": "npm run build && cp *.js dist/"
   },
   "keywords": [],
   "author": "Ahmed Fasih",
