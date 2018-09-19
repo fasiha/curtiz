@@ -321,15 +321,11 @@ if (require.main === module) {
       // Half-life calculation
       var minimize = require('minimize-golden-section-1d');
       function halflife(e: Ebisu): number {
-        let res = minimize((timestamp: number) => Math.abs(0.5 - e.predict(new Date(timestamp))), {
-          lowerBound: e.lastDate.valueOf(),
-          tolerance: 5e3,
-          maxIter: 1000,
-        });
-        if (res < e.lastDate.valueOf()) {
-          // Probably minimize failed to converge and returned function value, see
-          // https://github.com/scijs/minimize-golden-section-1d/issues/2
-          throw new Error('nonsense half-life, did minimize fail to converge?');
+        let status: any = {};
+        let res = minimize((timestamp: number) => Math.abs(0.5 - e.predict(new Date(timestamp))),
+                           {lowerBound: e.lastDate.valueOf(), tolerance: 5e3}, status);
+        if (res < e.lastDate.valueOf() || !status.converged) {
+          throw new Error('minimize failed to converge (nonsense half-life)');
         }
         return (res - e.lastDate.valueOf()) / 36e5;
       }

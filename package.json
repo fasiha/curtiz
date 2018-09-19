@@ -26,6 +26,6 @@
   },
   "dependencies": {
     "ebisu-js": "^0.5.6",
-    "minimize-golden-section-1d": "^2.0.1"
+    "minimize-golden-section-1d": "^3.0.0"
   }
 }
