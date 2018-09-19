@@ -285,9 +285,14 @@ if (require.main === module) {
       } else {
         throw new Error('unknown type to learn');
       }
-      await cliPrompt('Enter to indicate you have learned this');
+      let entry = await cliPrompt(
+          'Enter to indicate you have learned this, or a positive number to scale the initial half-life. > ');
+      let scale: number = 1;
+      if (entry && entry.length > 0 && (scale = parseFloat(entry))) {
+        console.log(`This fact's initial half-life is ${scale}× default.`);
+      }
       const now = new Date();
-      toLearn.learn(now);
+      toLearn.learn(now, scale);
       toLearn.updateBlock();
 
       // Post-learn
@@ -300,7 +305,7 @@ if (require.main === module) {
               if (hit.ebisu) {
                 hit.ebisu.passiveUpdate(now);
               } else {
-                hit.learn(now);
+                hit.learn(now, scale);
               }
               hit.updateBlock();
             } else {

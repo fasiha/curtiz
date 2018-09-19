@@ -75,9 +75,8 @@ class VocabBlock extends Quizzable {
             }
         }
     }
-    learn(now) {
-        this.ebisu =
-            'reading,translation,kanji'.split(',').map(_ => ebisu_1.Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS, undefined, now));
+    learn(now, scale = 1) {
+        this.ebisu = 'reading,translation,kanji'.split(',').map(_ => ebisu_1.Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, now));
     }
 }
 VocabBlock.init = '◊vocab';
@@ -132,7 +131,9 @@ class MorphemeBlock extends Quizzable {
             }
         }
     }
-    learn(now) { this.ebisu = ebisu_1.Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS, undefined, now); }
+    learn(now, scale = 1) {
+        this.ebisu = ebisu_1.Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, now);
+    }
 }
 MorphemeBlock.init = '◊morpheme';
 exports.MorphemeBlock = MorphemeBlock;
@@ -178,7 +179,9 @@ class BunsetsuBlock extends Quizzable {
             }
         }
     }
-    learn(now) { this.ebisu = ebisu_1.Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS, undefined, now); }
+    learn(now, scale = 1) {
+        this.ebisu = ebisu_1.Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, now);
+    }
 }
 BunsetsuBlock.init = '◊bunsetsu';
 exports.BunsetsuBlock = BunsetsuBlock;
@@ -316,7 +319,9 @@ class SentenceBlock extends Quizzable {
             }
         }
     }
-    learn(now) { this.ebisu = ebisu_1.Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS, undefined, now); }
+    learn(now, scale = 1) {
+        this.ebisu = ebisu_1.Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, now);
+    }
 }
 SentenceBlock.init = '◊sent';
 SentenceBlock.morphemeStart = '- ◊morpheme ';

@@ -309,9 +309,13 @@ if (require.main === module) {
                 else {
                     throw new Error('unknown type to learn');
                 }
-                yield cliPrompt_1.cliPrompt('Enter to indicate you have learned this');
+                let entry = yield cliPrompt_1.cliPrompt('Enter to indicate you have learned this, or a positive number to scale the initial half-life. > ');
+                let scale = 1;
+                if (entry && entry.length > 0 && (scale = parseFloat(entry))) {
+                    console.log(`This fact's initial half-life is ${scale}× default.`);
+                }
                 const now = new Date();
-                toLearn.learn(now);
+                toLearn.learn(now, scale);
                 toLearn.updateBlock();
                 // Post-learn
                 {
@@ -324,7 +328,7 @@ if (require.main === module) {
                                     hit.ebisu.passiveUpdate(now);
                                 }
                                 else {
-                                    hit.learn(now);
+                                    hit.learn(now, scale);
                                 }
                                 hit.updateBlock();
                             }
@@ -346,11 +350,7 @@ if (require.main === module) {
                 var minimize = require('minimize-golden-section-1d');
                 function halflife(e) {
                     let status = {};
-                    let res = minimize((timestamp) => Math.abs(0.5 - e.predict(new Date(timestamp))), {
-                        lowerBound: e.lastDate.valueOf(),
-                        tolerance: 5e3,
-                        maxIterations: 1000,
-                    }, status);
+                    let res = minimize((timestamp) => Math.abs(0.5 - e.predict(new Date(timestamp))), { lowerBound: e.lastDate.valueOf(), tolerance: 5e3 }, status);
                     if (res < e.lastDate.valueOf() || !status.converged) {
                         throw new Error('minimize failed to converge (nonsense half-life)');
                     }

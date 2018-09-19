@@ -24,7 +24,7 @@ export abstract class Quizzable {
   abstract predict(now?: Date): number;
   abstract extractEbisu(): void;
   abstract updateBlock(): void;
-  abstract learn(now?: Date): void;
+  abstract learn(now?: Date, scale?: number): void;
   abstract block: string[];
   abstract ebisu?: any;
 }
@@ -77,9 +77,9 @@ export class VocabBlock extends Quizzable {
       }
     }
   }
-  learn(now?: Date) {
-    this.ebisu =
-        'reading,translation,kanji'.split(',').map(_ => Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS, undefined, now));
+  learn(now?: Date, scale: number = 1) {
+    this.ebisu = 'reading,translation,kanji'.split(',').map(
+        _ => Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, now));
   }
 }
 
@@ -130,7 +130,9 @@ export class MorphemeBlock extends Quizzable {
       }
     }
   }
-  learn(now?: Date) { this.ebisu = Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS, undefined, now); }
+  learn(now?: Date, scale: number = 1) {
+    this.ebisu = Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, now);
+  }
 }
 
 export class BunsetsuBlock extends Quizzable {
@@ -174,7 +176,9 @@ export class BunsetsuBlock extends Quizzable {
       }
     }
   }
-  learn(now?: Date) { this.ebisu = Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS, undefined, now); }
+  learn(now?: Date, scale: number = 1) {
+    this.ebisu = Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, now);
+  }
 }
 export class SentenceBlock extends Quizzable {
   block: string[];
@@ -307,7 +311,9 @@ export class SentenceBlock extends Quizzable {
       }
     }
   }
-  learn(now?: Date) { this.ebisu = Ebisu.createDefault(DEFAULT_HALFLIFE_HOURS, undefined, now); }
+  learn(now?: Date, scale: number = 1) {
+    this.ebisu = Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, now);
+  }
 }
 
 export function textToBlocks(text: string): Content[] {
