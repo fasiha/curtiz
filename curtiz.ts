@@ -110,7 +110,12 @@ function gradeQuiz(morphemeBunsetsuMap: Map<string, MorphemeBlock|BunsetsuBlock>
     if (!toQuiz.ebisu) { throw new Error('Ebisu field expected'); }
     toQuiz.ebisu[0].update(correct, now);
     toQuiz.updateBlock();
-    if (!correct) { console.log('Correct answer: ', toQuiz.reading); }
+    if (!correct) {
+      console.log('💩 😭 🙅‍♀️ 🙅‍♂️ 👎. Correct answer: ', toQuiz.reading);
+    } else {
+      console.log(`💥 🔥 🎆 🎇 👏 🙌 👍 👌! ${toQuiz.translation ? toQuiz.translation : ''}, ${toQuiz.reading}${
+          toQuiz.kanji ? '・' + toQuiz.kanji : ''}`);
+    }
     return [correct];
   }
   throw new Error('Unadministerable quiz type');
@@ -216,7 +221,6 @@ if (require.main === module) {
         let response = await administerQuiz(sentenceToQuiz, 'particle');
 
         let grades = gradeQuiz(morphemeBunsetsuMap, response, sentenceToQuiz, 'particle');
-        console.log('response', response, 'grades', grades);
       } else if (toQuiz instanceof BunsetsuBlock) {
         let raw = toQuiz.bunsetsu.map(o => o ? o.literal : '').join('');
         let candidateSentences = learnedSentences.filter(o => o.sentence.includes(raw));
@@ -227,11 +231,9 @@ if (require.main === module) {
         let response = await administerQuiz(sentenceToQuiz, 'conjugation');
 
         let grades = gradeQuiz(morphemeBunsetsuMap, response, sentenceToQuiz, 'conjugation');
-        console.log('response', response, 'grades', grades);
       } else if (toQuiz instanceof VocabBlock) {
         let response = await administerQuiz(toQuiz);
         let grades = gradeQuiz(morphemeBunsetsuMap, response, toQuiz);
-        console.log('response', response, 'grades', grades);
       } else if (toQuiz instanceof SentenceBlock) {
         // This will only happen for a sentence without conjugated bunsetsu or particle morphemes, but it may happen.
         let quizType;
@@ -246,7 +248,6 @@ if (require.main === module) {
         }
         let response = await administerQuiz(toQuiz, quizType);
         let grades = gradeQuiz(morphemeBunsetsuMap, response, toQuiz, quizType);
-        console.log('response', response, 'grades', grades);
       } else {
         throw new Error('Unhandled quiz type');
       }

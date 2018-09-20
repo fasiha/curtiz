@@ -123,7 +123,10 @@ function gradeQuiz(morphemeBunsetsuMap, input, toQuiz, mode) {
         toQuiz.ebisu[0].update(correct, now);
         toQuiz.updateBlock();
         if (!correct) {
-            console.log('Correct answer: ', toQuiz.reading);
+            console.log('💩 😭 🙅‍♀️ 🙅‍♂️ 👎. Correct answer: ', toQuiz.reading);
+        }
+        else {
+            console.log(`💥 🔥 🎆 🎇 👏 🙌 👍 👌! ${toQuiz.translation ? toQuiz.translation : ''}, ${toQuiz.reading}${toQuiz.kanji ? '・' + toQuiz.kanji : ''}`);
         }
         return [correct];
     }
@@ -230,7 +233,6 @@ if (require.main === module) {
                     let sentenceToQuiz = candidateSentences[0];
                     let response = yield administerQuiz(sentenceToQuiz, 'particle');
                     let grades = gradeQuiz(morphemeBunsetsuMap, response, sentenceToQuiz, 'particle');
-                    console.log('response', response, 'grades', grades);
                 }
                 else if (toQuiz instanceof markdown_1.BunsetsuBlock) {
                     let raw = toQuiz.bunsetsu.map(o => o ? o.literal : '').join('');
@@ -242,12 +244,10 @@ if (require.main === module) {
                     let sentenceToQuiz = candidateSentences[0];
                     let response = yield administerQuiz(sentenceToQuiz, 'conjugation');
                     let grades = gradeQuiz(morphemeBunsetsuMap, response, sentenceToQuiz, 'conjugation');
-                    console.log('response', response, 'grades', grades);
                 }
                 else if (toQuiz instanceof markdown_1.VocabBlock) {
                     let response = yield administerQuiz(toQuiz);
                     let grades = gradeQuiz(morphemeBunsetsuMap, response, toQuiz);
-                    console.log('response', response, 'grades', grades);
                 }
                 else if (toQuiz instanceof markdown_1.SentenceBlock) {
                     // This will only happen for a sentence without conjugated bunsetsu or particle morphemes, but it may happen.
@@ -266,7 +266,6 @@ if (require.main === module) {
                     }
                     let response = yield administerQuiz(toQuiz, quizType);
                     let grades = gradeQuiz(morphemeBunsetsuMap, response, toQuiz, quizType);
-                    console.log('response', response, 'grades', grades);
                 }
                 else {
                     throw new Error('Unhandled quiz type');
