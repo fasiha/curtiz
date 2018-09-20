@@ -122,11 +122,12 @@ function gradeQuiz(morphemeBunsetsuMap, input, toQuiz, mode) {
         }
         toQuiz.ebisu[0].update(correct, now);
         toQuiz.updateBlock();
+        let summary = toQuiz.reading + (toQuiz.kanji ? '・' + toQuiz.kanji : '') + ': ' + toQuiz.translation;
         if (!correct) {
-            console.log('💩 😭 🙅‍♀️ 🙅‍♂️ 👎. Correct answer: ', toQuiz.reading);
+            console.log('😭 🙅‍♀️ 🙅‍♂️ 👎 🤬. Correct answer: ' + summary);
         }
         else {
-            console.log(`💥 🔥 🎆 🎇 👏 🙌 👍 👌! ${toQuiz.translation ? toQuiz.translation : ''}, ${toQuiz.reading}${toQuiz.kanji ? '・' + toQuiz.kanji : ''}`);
+            console.log(`💥 🔥 🎆 🎇 👏 🙌 👍 👌! ${summary}`);
         }
         return [correct];
     }
