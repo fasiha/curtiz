@@ -64,7 +64,7 @@ export class VocabBlock extends Quizzable {
     let eSubstrings = eString.slice(eDate.length + ebisuDateSeparator.length).split(ebisuSuperSeparator);
     this.ebisu = eSubstrings.map(s => Ebisu.fromString(eDate + Ebisu.fieldSeparator + s));
   }
-  predict(now?: Date): number { return this.ebisu ? Math.min(...this.ebisu.map(o => o.predict(now))) : Infinity; }
+  predict(now?: Date): number { return this.ebisu ? this.ebisu[0].predict(now) : Infinity; }
   updateBlock() {
     if (this.ebisu) {
       let eString = ebisuInit + this.ebisu[0].lastDate.toISOString() + ebisuDateSeparator + ' ' +
