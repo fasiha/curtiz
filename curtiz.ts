@@ -339,7 +339,7 @@ if (require.main === module) {
 
       // Print
       console.log(sorted
-                      .map(o => 'Precall=' + o.predict(now).toExponential(2) + '  hl=' +
+                      .map(o => 'Precall=' + (100 * o.predict(now)).toFixed(1) + '%  hl=' +
                                 (o.ebisu instanceof Array ? halflife(o.ebisu[0]) : halflife(o.ebisu)).toExponential(2) +
                                 'hours  ' + o.block[0])
                       .join('\n'));
