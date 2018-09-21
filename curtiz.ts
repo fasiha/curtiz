@@ -11,6 +11,7 @@ For Ebisu-related scheduling debug information:
     $ node [this-script.js] ebisu [markdown.md]
 `;
 
+import {histogram} from './histogram';
 import {bestGroupBy} from './bestGroupBy';
 import {kata2hira} from './kana';
 import {fill} from './cliFillInTheBlanks';
@@ -26,8 +27,10 @@ import {
   VocabBlock
 } from './markdown';
 import {Morpheme, ultraCompressMorpheme, ultraCompressMorphemes} from './mecabUnidic';
-import {argmin, enumerate, fillHoles} from './utils';
+import {enumerate, fillHoles} from './utils';
 import {Ebisu} from './ebisu';
+
+const CHUNKS_PER_LOG = 10;
 
 const bunsetsuToString = (morphemes: Morpheme[]) => morphemes.map(m => m.literal).join('');
 const morphemesToTsv = (b: Morpheme[]) => b.map(ultraCompressMorpheme).join('\n');
@@ -200,7 +203,8 @@ if (require.main === module) {
       let toQuiz: Quizzable|undefined;
       if (!DEBUG) {
         let [/*log probability*/, toQuizs] =
-            bestGroupBy(learned, o => (1 / 2) * Math.floor(2 * Math.log10(o.predict(now))), (a, b) => b - a);
+            bestGroupBy(learned, o => (1 / CHUNKS_PER_LOG) * Math.floor(CHUNKS_PER_LOG * Math.log10(o.predict(now))),
+                        (a, b) => b - a);
         if (toQuizs.length > 0) { toQuiz = toQuizs[Math.floor(Math.random() * toQuizs.length)]; }
       } else {
         toQuiz = learned.find(o => o instanceof MorphemeBlock);
@@ -323,8 +327,6 @@ if (require.main === module) {
       writeFile(filename, contentToString(content));
     } else if (mode === 'ebisu') {
       let now = new Date();
-      let sorted = learned.slice();
-      sorted.sort((a, b) => a.predict(now) - b.predict(now));
 
       // Half-life calculation
       var minimize = require('minimize-golden-section-1d');
@@ -338,12 +340,20 @@ if (require.main === module) {
         return (res - e.lastDate.valueOf()) / 36e5;
       }
 
-      // Print
-      console.log(sorted
-                      .map(o => 'Precall=' + (100 * o.predict(now)).toFixed(1) + '%  hl=' +
-                                (o.ebisu instanceof Array ? halflife(o.ebisu[0]) : halflife(o.ebisu)).toExponential(2) +
-                                'hours  ' + o.block[0])
-                      .join('\n'));
+      let groupsArr = Array.from(
+          histogram(learned, o => (1 / CHUNKS_PER_LOG) * Math.floor(CHUNKS_PER_LOG * Math.log10(o.predict(now)))));
+      groupsArr.sort((a, b) => a[0] - b[0]);
+      for (let [, sorted] of groupsArr) {
+        sorted.sort((a, b) => a.predict(now) - b.predict(now));
+        console.log(
+            sorted
+                .map(o => 'Precall=' + (100 * o.predict(now)).toFixed(1) + '%  hl=' +
+                          (o.ebisu instanceof Array ? halflife(o.ebisu[0]) : halflife(o.ebisu)).toExponential(2) +
+                          'hours  ' + o.block[0])
+                .join('\n'));
+        console.log('---')
+      }
+
     } else {
       console.error('Unknown mode. See usage below.');
       console.error(USAGE);

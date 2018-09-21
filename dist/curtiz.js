@@ -19,6 +19,7 @@ Either of these will overwrite markdown.md (after creating markdown.md.bak backu
 For Ebisu-related scheduling debug information:
     $ node [this-script.js] ebisu [markdown.md]
 `;
+const histogram_1 = require("./histogram");
 const bestGroupBy_1 = require("./bestGroupBy");
 const kana_1 = require("./kana");
 const cliFillInTheBlanks_1 = require("./cliFillInTheBlanks");
@@ -26,6 +27,7 @@ const cliPrompt_1 = require("./cliPrompt");
 const markdown_1 = require("./markdown");
 const mecabUnidic_1 = require("./mecabUnidic");
 const utils_1 = require("./utils");
+const CHUNKS_PER_LOG = 10;
 const bunsetsuToString = (morphemes) => morphemes.map(m => m.literal).join('');
 const morphemesToTsv = (b) => b.map(mecabUnidic_1.ultraCompressMorpheme).join('\n');
 const ensureFinalNewline = (s) => s.endsWith('\n') ? s : s + '\n';
@@ -212,7 +214,7 @@ if (require.main === module) {
                 let now = new Date();
                 let toQuiz;
                 if (!DEBUG) {
-                    let [/*log probability*/ , toQuizs] = bestGroupBy_1.bestGroupBy(learned, o => (1 / 2) * Math.floor(2 * Math.log10(o.predict(now))), (a, b) => b - a);
+                    let [/*log probability*/ , toQuizs] = bestGroupBy_1.bestGroupBy(learned, o => (1 / CHUNKS_PER_LOG) * Math.floor(CHUNKS_PER_LOG * Math.log10(o.predict(now))), (a, b) => b - a);
                     if (toQuizs.length > 0) {
                         toQuiz = toQuizs[Math.floor(Math.random() * toQuizs.length)];
                     }
@@ -346,8 +348,6 @@ if (require.main === module) {
             }
             else if (mode === 'ebisu') {
                 let now = new Date();
-                let sorted = learned.slice();
-                sorted.sort((a, b) => a.predict(now) - b.predict(now));
                 // Half-life calculation
                 var minimize = require('minimize-golden-section-1d');
                 function halflife(e) {
@@ -358,12 +358,17 @@ if (require.main === module) {
                     }
                     return (res - e.lastDate.valueOf()) / 36e5;
                 }
-                // Print
-                console.log(sorted
-                    .map(o => 'Precall=' + (100 * o.predict(now)).toFixed(1) + '%  hl=' +
-                    (o.ebisu instanceof Array ? halflife(o.ebisu[0]) : halflife(o.ebisu)).toExponential(2) +
-                    'hours  ' + o.block[0])
-                    .join('\n'));
+                let groupsArr = Array.from(histogram_1.histogram(learned, o => (1 / CHUNKS_PER_LOG) * Math.floor(CHUNKS_PER_LOG * Math.log10(o.predict(now)))));
+                groupsArr.sort((a, b) => a[0] - b[0]);
+                for (let [, sorted] of groupsArr) {
+                    sorted.sort((a, b) => a.predict(now) - b.predict(now));
+                    console.log(sorted
+                        .map(o => 'Precall=' + (100 * o.predict(now)).toFixed(1) + '%  hl=' +
+                        (o.ebisu instanceof Array ? halflife(o.ebisu[0]) : halflife(o.ebisu)).toExponential(2) +
+                        'hours  ' + o.block[0])
+                        .join('\n'));
+                    console.log('---');
+                }
             }
             else {
                 console.error('Unknown mode. See usage below.');
