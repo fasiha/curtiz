@@ -201,11 +201,21 @@ if (require.main === module) {
       let toQuiz: Quizzable|undefined;
       if (!DEBUG) {
         let learnedProbs = learned.map(o => o.predict(now));
-        let minProb = Math.min(...learnedProbs);
-        let maxProb = 10 * minProb;
-        let toQuizs = learned.filter((_, qidx) => learnedProbs[qidx] <= maxProb);
-        if (toQuizs.length > 0) { toQuiz = toQuizs[Math.floor(Math.random() * toQuizs.length)]; }
-        console.log('toQuizs.length', toQuizs.length)
+        let quizProb = learned.reduce(
+            ([q, p], curr, idx) => (learnedProbs[idx] < p ? [curr, learnedProbs[idx]] : [q, p]) as [Quizzable, number],
+            [undefined, Infinity] as [Quizzable | undefined, number]);
+        toQuiz = quizProb[0];
+        if (learned.length > 5) {
+          // If enough items have been learned, let's add some randomization. We'll still ask a quiz with low
+          // recall probability, but shuffling low-probability quizzes is nice to avoid quizzing in the same
+          // order as learned.
+          let minProb = quizProb[1];
+          let maxProb = [.001, .01, .1, .2, .3, .4, .5].find(x => x > minProb);
+          if (maxProb !== undefined) {
+            let toQuizs = learned.filter((_, qidx) => learnedProbs[qidx] <= (maxProb || 1));
+            if (toQuizs.length > 0) { toQuiz = toQuizs[Math.floor(Math.random() * toQuizs.length)]; }
+          }
+        }
       } else {
         toQuiz = learned.find(o => o instanceof MorphemeBlock);
         toQuiz = learned.find(o => o instanceof BunsetsuBlock);
