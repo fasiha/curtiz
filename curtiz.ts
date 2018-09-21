@@ -11,6 +11,7 @@ For Ebisu-related scheduling debug information:
     $ node [this-script.js] ebisu [markdown.md]
 `;
 
+import {bestGroupBy} from './bestGroupBy';
 import {kata2hira} from './kana';
 import {fill} from './cliFillInTheBlanks';
 import {cliPrompt} from './cliPrompt';
@@ -198,9 +199,9 @@ if (require.main === module) {
       let now: Date = new Date();
       let toQuiz: Quizzable|undefined;
       if (!DEBUG) {
-        let toQuizIdx: number;
-        let predictedRecall: number;
-        [toQuiz, predictedRecall, toQuizIdx] = argmin(learned, o => o.predict(now));
+        let [/*log probability*/, toQuizs] =
+            bestGroupBy(learned, o => (1 / 2) * Math.floor(2 * Math.log10(o.predict(now))), (a, b) => b - a);
+        if (toQuizs.length > 0) { toQuiz = toQuizs[Math.floor(Math.random() * toQuizs.length)]; }
       } else {
         toQuiz = learned.find(o => o instanceof MorphemeBlock);
         toQuiz = learned.find(o => o instanceof BunsetsuBlock);

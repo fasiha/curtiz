@@ -19,6 +19,7 @@ Either of these will overwrite markdown.md (after creating markdown.md.bak backu
 For Ebisu-related scheduling debug information:
     $ node [this-script.js] ebisu [markdown.md]
 `;
+const bestGroupBy_1 = require("./bestGroupBy");
 const kana_1 = require("./kana");
 const cliFillInTheBlanks_1 = require("./cliFillInTheBlanks");
 const cliPrompt_1 = require("./cliPrompt");
@@ -211,9 +212,10 @@ if (require.main === module) {
                 let now = new Date();
                 let toQuiz;
                 if (!DEBUG) {
-                    let toQuizIdx;
-                    let predictedRecall;
-                    [toQuiz, predictedRecall, toQuizIdx] = utils_1.argmin(learned, o => o.predict(now));
+                    let [/*log probability*/ , toQuizs] = bestGroupBy_1.bestGroupBy(learned, o => (1 / 2) * Math.floor(2 * Math.log10(o.predict(now))), (a, b) => b - a);
+                    if (toQuizs.length > 0) {
+                        toQuiz = toQuizs[Math.floor(Math.random() * toQuizs.length)];
+                    }
                 }
                 else {
                     toQuiz = learned.find(o => o instanceof markdown_1.MorphemeBlock);
