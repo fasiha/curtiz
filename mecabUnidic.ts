@@ -360,9 +360,21 @@ if (require.main === module) {
                  .join('\n')
                  .replace(/\r/g, '');
     }
-    const formatter = (arr: MaybeMorpheme[][]) =>
-        arr.map(arr => '  [ ' + arr.map(x => JSON.stringify(x)).join(',\n    ')).join(' ],\n');
-    const ldjsonFormatter = (arr: MaybeMorpheme[][]) => arr.map(x => JSON.stringify(x)).join('\n');
-    console.log(ldjsonFormatter(parseMecab(text, await invokeMecab(text.trim()))));
+    const parsed = parseMecab(text, await invokeMecab(text.trim()));
+    for (const sentence of parsed) {
+      for (const morpheme of sentence) {
+        if (morpheme) {
+          console.log(ultraCompressMorpheme(morpheme));
+        } else {
+          console.log('---');
+        }
+      }
+    }
+    if (false) {
+      const formatter = (arr: MaybeMorpheme[][]) =>
+          arr.map(arr => '  [ ' + arr.map(x => JSON.stringify(x)).join(',\n    ')).join(' ],\n');
+      const ldjsonFormatter = (arr: MaybeMorpheme[][]) => arr.map(x => JSON.stringify(x)).join('\n');
+      console.log(ldjsonFormatter(parsed));
+    }
   })();
 }

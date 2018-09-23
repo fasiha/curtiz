@@ -1,3 +1,33 @@
+# Experimental
+
+#### ◊sent :: rode in a car :: 車に乗った
+- ◊part 車 # reading obtained from morphemes
+- ◊part のる/乗る
+- ◊cloze particle に        # added by MeCab
+- ◊cloze conjugation 乗った  # added by MeCab
+
+The empty reading will be filled in by MeCab.
+
+For no-MeCab cases:
+
+#### ◊sent くるまにのった :: rode in a car :: 車に乗った
+- ◊Ebisu1 reading 2018: 3,3,0.25
+- ◊Ebisu1 kanji 2018: 4,4,2.5
+- ◊part くるま/車
+  - ◊Ebisu1 this 2018: 3,3,0.25
+- ◊part のる/乗る
+  - ◊Ebisu1 this 2018: 3,3,0.25
+- ◊cloze particle に
+  - ◊Ebisu1 this 2018: 3,3,0.25
+- ◊cloze conjugation 乗った
+  - ◊Ebisu1 this 2018: 3,3,0.25
+
+this に is all the other ni's in the document? No, what maters is that it's used in this sentence. 
+
+How to know whether to bother parsing something? Obviously if the reading is not present, fill it in. ??
+
+
+
 # Curtiz
 
 Curtiz is an experimental flashcard application aimed at Japanese language learners that uses Markdown to both
@@ -40,7 +70,7 @@ $ node curtiz.js learn README.md
 ```
 Curtiz should invite you to learn the following bit of Japanese vocabulary:
 
-#### ◊vocab かいしゃ: office: 会社
+#### ◊!vocab かいしゃ: office: 会社
 
 So. Curtiz looked through this Markdown file for a header block—a line starting with one or more `#`s—followed by a `◊` symbol (a lozenge, with much admiration towards [Pollen](https://docs.racket-lang.org/pollen/pollen-command-syntax.html#%28part._the-lozenge%29)) and the `vocab` keyword. Curtiz expects this to be followed by
 1. some text indicating pronunciation (probably some hiragana or katakana, though you can put whatever you want)
@@ -76,7 +106,7 @@ Assuming you have the requisite Japanese linguistic parsers and you have run one
 - ◊particle に
 - ◊conjugated ほめられた。
 
-#### ◊sent 山田は先生にほめられた。 :: Yamada was praised by the teacher.
+#### ◊!sent 山田は先生にほめられた。 :: Yamada was praised by the teacher.
 
 Note how `◊sent` is the Curtiz keyword indicating sentence, and how it added extra information on bullets under the header, prefacing each bullet with a lozenge plus a keyword it understands. This is a core "feature" of Curtiz: rather than an external database, your human-editable Markdown file is its only database. (I do plan on integrating it with Git, to track reviews, but that is not necessary for learning and quizzing. Markdown + Curtiz is all you need.)
 
