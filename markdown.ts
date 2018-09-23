@@ -22,9 +22,9 @@ const ebisuSuperSeparator = ';';
 
 export abstract class Quizzable {
   abstract predict(now?: Date): number;
-  abstract extractTopLevelEbisu(): void;
-  // abstract updateBlock(): void;
   abstract learn(now?: Date, scale?: number): void;
+  abstract preQuiz(now?: Date, quizName?: string): {quizName: string, contexts: (string|null)[], clozes: string[]};
+  abstract postQuiz(quizName: string, clozes: string[], results: string[], now?: Date): boolean;
   abstract block: string[];
   abstract ebisu?: any;
 }
@@ -109,7 +109,7 @@ function blockToFirstEbisu(block: string[], status?: {lino?: number}) {
   }
   return null;
 }
-function updateBlockEbisu(block: string[], startIdx: number, name: string, ebisu: Ebisu) {
+function updateBlockEbisu(block: string[], startIdx: number, ebisu: Ebisu) {
   let rows = findSubBlockLength(block, startIdx);
   const ebisuRegexp = new RegExp('^\\s*' + ebisuInit + '[^ ]+ ');
   for (let [lidx, line] of enumerate(block.slice(startIdx, startIdx + rows))) {
@@ -133,6 +133,7 @@ export class SentenceBlock extends Quizzable {
   relateds: string[] = [];
   ebisu?: Map<string, Ebisu>;
   ebisuNameToLino: Map<string, number> = new Map([]);
+  clozeNameToLino: Map<string, number> = new Map([]);
   static init: string = '◊sent';
   static clozedParticleStart = '- ◊cloze particle ';
   static clozedConjugationStart = '- ◊cloze conjugation ';
@@ -157,6 +158,7 @@ export class SentenceBlock extends Quizzable {
   }
   extractAll() {
     for (const key of this.ebisuNameToLino.keys()) { this.ebisuNameToLino.delete(key); }
+    for (const key of this.clozeNameToLino.keys()) { this.clozeNameToLino.delete(key); }
     this.extractTopLevelEbisu();
     this.extractClozesRelateds();
   }
@@ -184,20 +186,19 @@ export class SentenceBlock extends Quizzable {
             let withoutInit = line.slice(match[0].length).trim();
             if (withoutInit.length === 0) { throw new Error('cloze conjugation empty?') }
             dest.push(withoutInit);
+            let title = match[0].trimLeft() + withoutInit;
+            this.clozeNameToLino.set(title, lidx);
+
             let numBullets = findSubBlockLength(this.block, lidx);
             let status = {lino: -1};
             let e = blockToFirstEbisu(this.block.slice(lidx, lidx + numBullets), status);
-
             if (e) {
               if (!this.ebisu) { this.ebisu = new Map([]); }
-              let title = match[0].trimLeft() + withoutInit;
               this.ebisu.set(title, e.ebisu);
               if (status.lino < 0) { throw new Error('Ebisu made but lino not found?') }
               this.ebisuNameToLino.set(title, lidx + status.lino);
-              return true;
-            } else {
-              throw new Error('Could not find Ebisu block?');
             }
+            return true;
           }
           return false;
         }
@@ -215,6 +216,7 @@ export class SentenceBlock extends Quizzable {
     ];
     for (let targetName of acceptableNames) {
       this.ebisuNameToLino.delete(targetName);
+      this.clozeNameToLino.delete(targetName); // and don't add!
       let hit = this.block.findIndex(s => s.indexOf(ebisuInit + targetName + ' ') >= 0);
       if (hit >= 0) {
         let e = blockToFirstEbisu([this.block[hit]]);
@@ -231,32 +233,42 @@ export class SentenceBlock extends Quizzable {
     return Math.min(...Array.from(this.ebisu.values()).map(e => e.predict(now)));
   }
   learn(now?: Date, scale: number = 1) {
-    // Reading: required
-    // Kanji: optional
-    // One for each cloze
-    // One for each part.
+    now = now || new Date();
     this.ebisu = new Map([]);
     const make = () => Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, now);
-    this.ebisu.set('reading', make());
-    // if (hasKanji(this.sentence)) { this.ebisu.set('kanji', make()); }
-    for (let p of this.clozedParticles) { this.ebisu.set(SentenceBlock.clozedParticleStart + p, make()); }
-    for (let c of this.clozedParticles) { this.ebisu.set(SentenceBlock.clozedConjugationStart + c, make()); }
-    for (let r of this.relateds) { this.ebisu.set(SentenceBlock.relatedStart + r, make()); }
-  }
-  postQuiz(quizName: string, clozes: string[], results: string[], now?: Date): boolean {
-    if (!this.ebisu) { throw new Error('Block has not yet been learned: no Ebisu map'); }
-    const correct = clozes.every((cloze, cidx) => (cloze === results[cidx]) || (cloze === kata2hira(results[cidx])));
-    for (let [name, ebisu] of this.ebisu) {
-      if (name === quizName) {
-        ebisu.update(correct, now);
-      } else {
-        ebisu.passiveUpdate(now);
+    const looper = (v: string[], init: string, map: Map<string, Ebisu>) => {
+      for (let p of v) {
+        let name = init + p;
+        let ebisu = make();
+        map.set(name, ebisu);
+        let headerIdx = this.clozeNameToLino.get(name);
+        if (typeof headerIdx === 'number') {
+          let dash = this.block[headerIdx].indexOf('-');
+          if (dash < 0) { throw new Error('Failed to find dash of bullet'); }
+          let spaces = ' '.repeat(dash + 2);
+          let eStrings = ebisu.toString();
+          this.block.splice(headerIdx + 1, 0,
+                            spaces + ebisuInit + '_' +
+                                ' ' + eStrings[0] + ebisuDateSeparator + ' ' + eStrings[1]);
+          for (let [k, v] of this.clozeNameToLino) {
+            if (v > headerIdx) { this.clozeNameToLino.set(k, v + 1); }
+          }
+        } else {
+          throw new Error('Quiz name not found in clozeNameToLino:' + name);
+        }
       }
-      const idx = this.ebisuNameToLino.get(name);
-      if (typeof idx !== 'number') { throw new Error('TypeScript pacification: name->index failed') }
-      updateBlockEbisu(this.block, idx, name, ebisu);
+    };
+    looper(this.clozedParticles, SentenceBlock.clozedParticleStart, this.ebisu);
+    looper(this.clozedConjugations, SentenceBlock.clozedConjugationStart, this.ebisu);
+    looper(this.relateds, SentenceBlock.relatedStart, this.ebisu);
+
+    // kanji to be decided
+    for (let name of 'reading'.split(',')) {
+      let ebisu = make();
+      this.ebisu.set(name, ebisu);
+      let eStrings = ebisu.toString();
+      this.block.push(ebisuInit + name + ' ' + eStrings[0] + ebisuDateSeparator + ' ' + eStrings[1])
     }
-    return correct;
   }
   preQuiz(now?: Date, quizName?: string): {quizName: string, contexts: (string|null)[], clozes: string[]} {
     if (!this.ebisu) { throw new Error('Block has not yet been learned: no Ebisu map'); }
@@ -293,12 +305,28 @@ export class SentenceBlock extends Quizzable {
     }
     throw new Error('unknown quiz name');
   }
+  postQuiz(quizName: string, clozes: string[], results: string[], now?: Date): boolean {
+    if (!this.ebisu) { throw new Error('Block has not yet been learned: no Ebisu map'); }
+    const correct = clozes.every((cloze, cidx) => (cloze === results[cidx]) || (cloze === kata2hira(results[cidx])));
+    for (let [name, ebisu] of this.ebisu) {
+      if (name === quizName) {
+        ebisu.update(correct, now);
+      } else {
+        ebisu.passiveUpdate(now);
+      }
+      const idx = this.ebisuNameToLino.get(name);
+      if (typeof idx !== 'number') { throw new Error('TypeScript pacification: name->index failed') }
+      updateBlockEbisu(this.block, idx, ebisu);
+    }
+    return correct;
+  }
   async verify() {
     const pleaseParseRegexp = /^\s*- ◊pleaseParse/;
     if (this.reading === '' || this.block.some(s => pleaseParseRegexp.test(s))) {
       let {bunsetsus} = await parse(this.sentence);
       this.identifyQuizItems(bunsetsus);
       this.block = this.block.filter(s => !pleaseParseRegexp.test(s));
+      this.extractAll();
     }
   }
   identifyQuizItems(bunsetsus: Morpheme[][]) {
@@ -324,10 +352,21 @@ export class SentenceBlock extends Quizzable {
       for (let particle of difference(oldsSet, newSet)) {
         let idx = this.block.findIndex(s => s.indexOf(init + particle) >= 0);
         if (idx < 0) { throw new Error('cloze should have been found but was not'); }
-        // FIXME should I check that no Ebisu blocks were deleted, and/or if changing/adding purges Ebisu?
-        this.block.splice(idx, findSubBlockLength(this.block, idx));
+        let numBullets = findSubBlockLength(this.block, idx);
+        if (blockToFirstEbisu(this.block.slice(idx, idx + numBullets))) {
+          throw new Error('Refusing to delete a cloze with an Ebisu model');
+        }
+        this.block.splice(idx, numBullets);
       }
-      for (let particle of difference(newSet, oldsSet)) { this.block.push(initialSpaces + init + particle); }
+      for (let particle of difference(newSet, oldsSet)) {
+        let match = this.sentence.match(new RegExp(particle, 'g'));
+        if (!match) { throw new Error('Particle not found?'); }
+        if (match.length === 1) {
+          this.block.push(initialSpaces + init + particle);
+        } else {
+          this.block.push(initialSpaces + init + particle);
+        }
+      }
     };
     update(clozedParticles, this.clozedParticles, SentenceBlock.clozedParticleStart);
     update(clozedConjugations, this.clozedConjugations, SentenceBlock.clozedConjugationStart);
@@ -380,6 +419,10 @@ export function textToBlocks(text: string): Content[] {
   return content;
 }
 
+export async function verifyAll(content: Content[]) {
+  return Promise.all(content.filter(c => c instanceof SentenceBlock).map(o => (o as SentenceBlock).verify()));
+}
+
 const ensureFinalNewline = (s: string) => s.endsWith('\n') ? s : s + '\n';
 const contentToString = (content: Array<Content>) =>
     ensureFinalNewline(content.map(o => (o instanceof Array ? o : o.block).join('\n')).join('\n'));
@@ -411,21 +454,11 @@ if (require.main === module) {
     let quizs: SentenceBlock[] = content.filter(o => o instanceof SentenceBlock) as SentenceBlock[];
     let q = quizs[0];
     let origBlock = q.block.slice();
-    console.log('<<<>>>')
-    console.log('<<<>>>')
-    console.log('<<<>>>')
-    if (q.ebisu) {
-      for (let key of q.ebisu.keys()) {
-        let pre = q.preQuiz(undefined, key);
-        console.log('pre', pre);
-        console.log('post result', q.postQuiz(key, pre.clozes, ['']));
-        console.log(q.block);
-        console.log('<<<>>>');
-        q.block = origBlock.slice();
-        q.extractAll();
-      }
-    }
 
+    // await q.verify();
+
+    q.learn();
+    console.log(q.block);
     // Save file
     // writeFile(filename, contentToString(content));
   })();
