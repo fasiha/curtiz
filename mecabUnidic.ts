@@ -346,6 +346,11 @@ export function decompressMorpheme(s: string): MaybeMorpheme {
 }
 export function decompressMorphemes(s: string): MaybeMorpheme[] { return s.split(BUNSETSUSEP).map(decompressMorpheme); }
 
+export function goodMorphemePredicate(m: Morpheme): boolean {
+  return !(m.partOfSpeech[0] === 'supplementary_symbol') &&
+         !(m.partOfSpeech[0] === 'particle' && m.partOfSpeech[1] === 'phrase_final');
+}
+
 if (require.main === module) {
   const readFile = require('fs').readFile;
   const promisify = require('util').promisify;

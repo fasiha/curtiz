@@ -1,18 +1,8 @@
 import {Ebisu} from './ebisu';
 import * as jdepp from './jdepp';
 import {kata2hira} from './kana';
-import {
-  decompressMorpheme,
-  decompressMorphemes,
-  invokeMecab,
-  maybeMorphemesToMorphemes,
-  maybeMorphemeToMorpheme,
-  Morpheme,
-  parseMecab,
-  ultraCompressMorpheme,
-  ultraCompressMorphemes
-} from './mecabUnidic';
-import {argmin, difference, enumerate, hasKanji, zip} from './utils';
+import {goodMorphemePredicate, invokeMecab, maybeMorphemesToMorphemes, Morpheme, parseMecab} from './mecabUnidic';
+import {argmin, enumerate, filterRight, setEq, zip} from './utils';
 
 const DEFAULT_HALFLIFE_HOURS = 0.25;
 const ebisuVersion = '1';
@@ -30,6 +20,41 @@ export abstract class Quizzable {
 }
 export type Content = Quizzable|string[];
 
+/**
+ * Ensure needle is found in haystack only once
+ * @param haystack big string
+ * @param needle little string
+ */
+function appearsExactlyOnce(haystack: string, needle: string): boolean {
+  let hit: number;
+  return (hit = haystack.indexOf(needle)) >= 0 && (hit = haystack.indexOf(needle, hit + 1)) < 0;
+}
+/**
+ * Given three consecuties substrings (the arguments), return either
+ * - `${left2}[${cloze}]${right2}` where `left2` and `right2` are as short as possible (and of equal length, if
+ *    possible) so the this return string (minus the brackets) is unique in the full string, or
+ * - `${cloze}` if `left2 === right2 === ''` (i.e., the above but without the brackets).
+ * @param left left string, possibly empty
+ * @param cloze middle string
+ * @param right right string, possible empty
+ * @throws in the unlikely event that such a return string cannot be build (I cannot think of an example though)
+ */
+function generateContextClozed(left: string, cloze: string, right: string): string {
+  const sentence = left + cloze + right;
+  let leftContext = '';
+  let rightContext = '';
+  let contextLength = 0;
+  while (!appearsExactlyOnce(sentence, leftContext + cloze + rightContext)) {
+    contextLength++;
+    if (contextLength >= left.length && contextLength >= right.length) {
+      throw new Error('Ran out of context to build unique cloze');
+    }
+    leftContext = left.slice(-contextLength);
+    rightContext = right.slice(0, contextLength);
+  }
+  if (leftContext === '' && rightContext === '') { return cloze; }
+  return `${leftContext}[${cloze}]${rightContext}`;
+}
 function extractClozed(haystack: string, needleWithContext: string): [(string | null)[], string[]] {
   let re = /\[([^\]]+)\]/;
   let bracketMatch = needleWithContext.match(re);
@@ -333,43 +358,58 @@ export class SentenceBlock extends Quizzable {
     let clozedParticles: Set<string> = new Set([]);
     let clozedConjugations: Set<string> = new Set([]);
     const bunsetsuToString = (morphemes: Morpheme[]) => morphemes.map(m => m.literal).join('');
-    for (let bunsetsu of bunsetsus) {
+    const particlePredicate = (p: Morpheme) => p.partOfSpeech[0].startsWith('particle') && p.partOfSpeech.length > 1 &&
+                                               !p.partOfSpeech[1].startsWith('phrase_final');
+    for (let [bidx, bunsetsu] of enumerate(bunsetsus)) {
       let first = bunsetsu[0];
       if (!first) { continue; }
       const pos0 = first.partOfSpeech[0];
       if (bunsetsu.length > 1 && (pos0.startsWith('verb') || pos0.startsWith('adject'))) {
-        clozedConjugations.add(bunsetsuToString(bunsetsu));
+        let ignoreRight = filterRight(bunsetsu, m => !goodMorphemePredicate(m));
+        let cloze = bunsetsuToString(ignoreRight.length === 0 ? bunsetsu : bunsetsu.slice(0, -ignoreRight.length));
+        let left = bunsetsus.slice(0, bidx).map(bunsetsuToString).join('');
+        let right = bunsetsuToString(ignoreRight) + bunsetsus.slice(bidx + 1).map(bunsetsuToString).join('');
+        clozedConjugations.add(generateContextClozed(left, cloze, right));
       } else {
         // only add particles if they're NOT inside conjugated phrases
-        bunsetsu.filter(m => m.partOfSpeech[0].startsWith('particle') && !m.partOfSpeech[1].startsWith('phrase_final'))
-            .forEach(o => clozedParticles.add(o.literal));
+        for (let [pidx, particle] of enumerate(bunsetsu)) {
+          if (particlePredicate(particle)) {
+            let left =
+                bunsetsus.slice(0, bidx).map(bunsetsuToString).join('') + bunsetsuToString(bunsetsu.slice(0, pidx));
+            let right =
+                bunsetsuToString(bunsetsu.slice(pidx + 1)) + bunsetsus.slice(bidx + 1).map(bunsetsuToString).join('');
+            clozedParticles.add(generateContextClozed(left, particle.literal, right));
+          }
+        }
       }
     }
-    this.extractClozesRelateds();
+    if (setEq(clozedParticles, new Set(this.clozedParticles)) &&
+        setEq(clozedConjugations, new Set(this.clozedConjugations))) {
+      // all done.
+      return;
+    }
+    // Existing clozes don't match parsed ones. FIXME doesn't handle over-determined contexts for clozes
+    if (this.ebisu && this.ebisu.size > 0) {
+      throw new Error('Refusing to modify clozes/readings for learned items (with Ebisu models)');
+    }
+    // Delete all existing clozes and insert new ones
+    let linos: number[] = Array.from(this.clozeNameToLino.keys())
+                              .filter(o => o.indexOf(SentenceBlock.clozedConjugationStart) >= 0 ||
+                                           o.indexOf(SentenceBlock.clozedParticleStart) >= 0)
+                              .map(k => this.clozeNameToLino.get(k)) as number[];
+    if (linos.some(n => typeof n === 'undefined')) { throw new Error('cloze not found in clozeNameToLino'); }
+    if (linos.length !== this.clozedParticles.length + this.clozedConjugations.length) {
+      throw new Error('Did not find equal number of clozes and line starts');
+    }
+    // Important: delete from the end!
+    linos.sort((a, b) => b - a);
+    for (let lino of linos) {
+      let nbullets = findSubBlockLength(this.block, lino);
+      this.block.splice(lino, nbullets);
+    }
     const initialSpaces = ' '.repeat(findDashIndex(this.block[1]));
-    const update = (newSet: Set<string>, olds: string[], init: string) => {
-      let oldsSet = new Set(olds);
-      for (let particle of difference(oldsSet, newSet)) {
-        let idx = this.block.findIndex(s => s.indexOf(init + particle) >= 0);
-        if (idx < 0) { throw new Error('cloze should have been found but was not'); }
-        let numBullets = findSubBlockLength(this.block, idx);
-        if (blockToFirstEbisu(this.block.slice(idx, idx + numBullets))) {
-          throw new Error('Refusing to delete a cloze with an Ebisu model');
-        }
-        this.block.splice(idx, numBullets);
-      }
-      for (let particle of difference(newSet, oldsSet)) {
-        let match = this.sentence.match(new RegExp(particle, 'g'));
-        if (!match) { throw new Error('Particle not found?'); }
-        if (match.length === 1) {
-          this.block.push(initialSpaces + init + particle);
-        } else {
-          this.block.push(initialSpaces + init + particle);
-        }
-      }
-    };
-    update(clozedParticles, this.clozedParticles, SentenceBlock.clozedParticleStart);
-    update(clozedConjugations, this.clozedConjugations, SentenceBlock.clozedConjugationStart);
+    for (let c of clozedConjugations) { this.block.push(initialSpaces + SentenceBlock.clozedConjugationStart + c); }
+    for (let p of clozedParticles) { this.block.push(initialSpaces + SentenceBlock.clozedParticleStart + p); }
     this.clozedParticles = Array.from(clozedParticles);
     this.clozedConjugations = Array.from(clozedConjugations);
   }
@@ -455,10 +495,11 @@ if (require.main === module) {
     let q = quizs[0];
     let origBlock = q.block.slice();
 
-    // await q.verify();
+    await q.verify();
+    console.log(">>> after verifying", q);
 
     q.learn();
-    console.log(q.block);
+    console.log('>>> block after learning', q.block);
     // Save file
     // writeFile(filename, contentToString(content));
   })();
