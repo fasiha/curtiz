@@ -34,19 +34,24 @@ $ npm run build
 ```
 You are asking `git` to clone this repository from GitHub to your computer, then `cd` to enter the newly-cloned directory, then `npm` (Node.js Package Manager that was installed alongside Node.js) to `install` dependencies and compile (`build`) my TypeScript source code to JavaScript (which Node.js can run).
 
-If you want automatic reading generation and automatic conjugations/particles detection, you need to install MeCab, UniDic, and J.DepP. Please feel free to write to me if the following sketch is insufficient. On macOS, I install the first two via `brew install mecab mecab-unidic` with the always-superb [Homebrew](https://brew.sh/).
+If you want automatic reading generation and automatic conjugations/particles detection, you need to install MeCab, UniDic, and J.DepP. **N.B. You can use Curtiz quite well without these tools.** Please feel free to [write](https://fasiha.github.io/#contact) to me or [open an issue](https://github.com/fasiha/curtiz/issues) if the following sketch is insufficient.
 
-[J.DepP](http://www.tkl.iis.u-tokyo.ac.jp/~ynaga/jdepp/#dl) has to be compiled and installed manually, so here's how I do it on macOS or a Unix system:
+(1) and (2): On macOS, I install the first two via `brew install mecab mecab-unidic` with the always-superb [Homebrew](https://brew.sh/).
+
+Finally, (3): [J.DepP](http://www.tkl.iis.u-tokyo.ac.jp/~ynaga/jdepp/#dl) has to be compiled and installed manually. On macOS or Unix:
 ```
 $ curl -O http://www.tkl.iis.u-tokyo.ac.jp/~ynaga/jdepp/jdepp-latest.tar.gz
 $ tar zf jdepp-latest.tar.gz
+$ cd jdepp-YYYY-MM-DD---UPDATE-THIS
 $ ./configure --with-mecab-dict=UNI
 $ make model
 $ make install
 ```
-(You might need a `sudo` for `make install`?) This will download corpora from the internet and build the J.DepP source code. **N.B. This installation needs Python 2.** (I use the wonderful [pyenv](https://github.com/pyenv/pyenv#readme) to track my Pythons so it was trivial to set up the J.DepP directory to use Python 2.)
+(`curl` just downloads the file; make sure you change the directory name; your system may need `sudo make install` on the last line.) This will download corpora from the internet and build the J.DepP source code. **N.B. This installation needs Python 2.** (I use the wonderful [pyenv](https://github.com/pyenv/pyenv#readme) to track my Pythons so it was trivial to set up the J.DepP directory to use Python 2.)
 
-I am also preparing a Docker container with these dependencies. (I'm also preparing Emscripten versions of these C++ applications so they can be `npm install`ed.)
+I am also preparing a Docker container with these dependencies, as well as Emscripten versions of these C++ applications so they can be `npm install`ed.
+
+And as mentioned, feel free to [write](https://fasiha.github.io/#contact) to me or [open an issue](https://github.com/fasiha/curtiz/issues) for help with any of the above.
 
 ## Usage
 This [`README.md`](README.md) that you're currently reading is a Curtiz-friendly Markdown file that you can use immediately. Try running the following:
@@ -68,7 +73,7 @@ That is, Curtiz will look through this Markdown file for a header block—a line
 
 If you actually ran the command above, you might notice that Curtiz has modified your copy of this README.md. It has added a Markdown bullet under the header above, something like `- ◊Ebisu1 `, followed by a date and several numbers. [Ebisu](https://fasiha.github.io/ebisu/) is the statistical scheduler that Curtiz uses to know what flashcards to review and when; the numbers are Ebisu "models" that track your memory of this flashcard (the reading, translation, and kanji are all separate "flashcards").
 
-> (If you don't yet know hiragana, head on over to [Naurvir's Memrise Hiragana course](https://www.memrise.com/course/43833/hiragana-2/) and you'll have it in a couple of days. Seriously, don't delay: Memrise's emphasis on visual mnemonics make it child's play to memorize the hiragana and [katakana](https://www.memrise.com/course/43875/katakana-2/). (Though, it's better to learn the katakana *from* the hiragana, instead of learning both from English or your native language. Try to find a course that teaches katakana from the hiragana.))
+> If you don't yet know hiragana, head on over to [Naurvir's Memrise Hiragana course](https://www.memrise.com/course/43833/hiragana-2/) and you'll have it in a couple of days. Seriously, don't delay: Memrise's emphasis on visual mnemonics make it child's play to memorize the hiragana and [katakana](https://www.memrise.com/course/43875/katakana-2/). (Though, it's better to learn the katakana *from* the hiragana, instead of learning both from English or your native language. Try to find a course that teaches katakana from the hiragana.)
 
 You can ask Curtiz to `quiz` you on what you just learned by running the following:
 ```
