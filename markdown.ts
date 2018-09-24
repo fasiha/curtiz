@@ -185,7 +185,7 @@ export class SentenceBlock extends Quizzable {
   static clozedParticleStart = '- ◊cloze particle ';
   static clozedConjugationStart = '- ◊cloze conjugation ';
   static relatedStart = '- ◊related ';
-  static translationSep = '::';
+  static fieldSep = '::';
 
   constructor(block: string[]) {
     super();
@@ -193,11 +193,8 @@ export class SentenceBlock extends Quizzable {
     const lozengeIdx = block[0].indexOf(SentenceBlock.init);
     if (lozengeIdx < 0) { throw new Error('◊ not found'); }
     const line = block[0].slice(lozengeIdx + SentenceBlock.init.length);
-    const pieces = line.split(SentenceBlock.translationSep);
-    if (pieces.length !== 3) {
-      console.error(block);
-      throw new Error('Sentence needs (1) reading, (2) translation, and (3) printed.');
-    }
+    const pieces = line.split(SentenceBlock.fieldSep);
+    if (pieces.length !== 3) { throw new Error('Sentence needs (1) reading, (2) translation, and (3) printed.'); }
     this.sentence = pieces[2].trim();
     this.translation = pieces[1].trim();
     this.reading = pieces[0].trim();
@@ -349,10 +346,11 @@ export class SentenceBlock extends Quizzable {
       return {quizName, contexts, clozes};
     } else if ((hit = quizName.indexOf(SentenceBlock.relatedStart)) >= 0) {
       let related = quizName.slice(hit + SentenceBlock.relatedStart.length);
-      let split = related.split('/');
-      if (split.length !== 2) { throw new Error('Two-item related not found'); }
-      let [reading, kanji] = split;
-      return {quizName, contexts: [`${kanji}: enter reading: `, null], clozes: [reading]};
+      let split = related.split(SentenceBlock.fieldSep);
+      if (!(split.length === 2 || split.length === 3)) { throw new Error('2- or 3-item related not found'); }
+      let [reading, translation, kanji] = split.map(s => s.trim());
+      if (kanji) { return {quizName, contexts: [`${kanji}: enter reading: `, null], clozes: [reading]}; }
+      return {quizName, contexts: [`${translation}: enter reading: `, null], clozes: [reading]};
     } else if (quizName === 'reading') {
       return {quizName, contexts: [`${this.sentence}: enter reading: `, null], clozes: [this.reading]};
     }
@@ -389,7 +387,7 @@ export class SentenceBlock extends Quizzable {
           let oldHeader = this.block[0];
           let hit = oldHeader.indexOf(SentenceBlock.init);
           if (hit < 0) { throw new Error('Init string not found in block header?'); }
-          let hit2 = oldHeader.indexOf(SentenceBlock.translationSep, hit + SentenceBlock.init.length);
+          let hit2 = oldHeader.indexOf(SentenceBlock.fieldSep, hit + SentenceBlock.init.length);
           if (hit2 < 0) { throw new Error('Separator not found in block header?'); }
           // reading should be between `hit + SentenceBlock.init.length+1` and `hit2`.
           let newHeader =
@@ -407,7 +405,6 @@ export class SentenceBlock extends Quizzable {
     let clozedConjugations: Set<string> = new Set([]);
     const particlePredicate = (p: Morpheme) => p.partOfSpeech[0].startsWith('particle') && p.partOfSpeech.length > 1 &&
                                                !p.partOfSpeech[1].startsWith('phrase_final');
-    // console.log(bunsetsus);
     for (let [bidx, bunsetsu] of enumerate(bunsetsus)) {
       let first = bunsetsu[0];
       if (!first) { continue; }

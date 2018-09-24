@@ -126,17 +126,38 @@ test('postQuiz', async t => {
   t.end();
 });
 
-test('Related cards', async t => {
+test('Related cards with kanji', async t => {
   let raw = `# ◊sent :: My mom's car's color. :: 私のお母さんの車の色。
-- ◊related わたし/私`;
+- ◊related わたし :: I :: 私`;
   let content = md.textToBlocks(raw);
   await content[0].verify();
   content[0].learn();
-  let clozeStruct = content[0].preQuiz(undefined, '- ◊related わたし/私');
+  let clozeStruct = content[0].preQuiz(undefined, '- ◊related わたし :: I :: 私');
   // One of the context strings should have the kanji in question
   t.ok(clozeStruct.contexts.some(s => s.indexOf('私') >= 0));
   // And one of the cloze strings should have the reading in question
   t.ok(clozeStruct.clozes.some(s => s.indexOf('わたし') >= 0));
+  t.end();
+});
 
+test('Related cards with NO kanji', async t => {
+  let raw = `# ◊sent ごじまで　:: till 5 o'clock :: 五時まで
+- ◊related まで :: till`;
+  let content = md.textToBlocks(raw);
+  await content[0].verify();
+  content[0].learn();
+  for (let name of content[0].ebisu.keys()) {
+    let clozeStruct = content[0].preQuiz(undefined, name);
+    if (name.indexOf('◊related') >= 0) {
+      t.ok(clozeStruct.contexts.some(s => s.indexOf('till') >= 0));
+      t.ok(clozeStruct.clozes.some(s => s.indexOf('まで') >= 0));
+    }
+  }
+  t.end();
+});
+
+test('Throw when no kanji', async t => {
+  let raw = `# ◊sent まで　:: till`;
+  t.throws(() => md.textToBlocks(raw))
   t.end();
 });

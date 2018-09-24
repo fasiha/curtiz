@@ -1,54 +1,27 @@
-# Experimental
-
-#### ◊sent :: rode in a car :: 車に乗った
-- ◊part 車 # reading obtained from morphemes
-- ◊part のる/乗る
-- ◊cloze particle に        # added by MeCab
-- ◊cloze conjugation 乗った  # added by MeCab
-
-The empty reading will be filled in by MeCab.
-
-For no-MeCab cases:
-
-#### ◊sent くるまにのった :: rode in a car :: 車に乗った
-- ◊Ebisu1 reading 2018: 3,3,0.25
-- ◊Ebisu1 kanji 2018: 4,4,2.5
-- ◊part くるま/車
-  - ◊Ebisu1 this 2018: 3,3,0.25
-- ◊part のる/乗る
-  - ◊Ebisu1 this 2018: 3,3,0.25
-- ◊cloze particle に
-  - ◊Ebisu1 this 2018: 3,3,0.25
-- ◊cloze conjugation 乗った
-  - ◊Ebisu1 this 2018: 3,3,0.25
-
-this に is all the other ni's in the document? No, what maters is that it's used in this sentence. 
-
-How to know whether to bother parsing something? Obviously if the reading is not present, fill it in. ??
-
-
-
 # Curtiz
 
 Curtiz is an experimental flashcard application aimed at Japanese language learners that uses Markdown to both
 - store flashcards, and
 - store review scheduling information.
 
-Here's how it works. You write a Markdown file (see GitHub's guide, [Mastering Markdown](https://guides.github.com/features/mastering-markdown/) for a quick introduction). Curtiz recognizes Markdown headings conforming to a special syntax as flashcards you want to learn about. You can tell Curtiz you want to `learn` new flashcards, or to `quiz` you on flashcards you already know.
+Here's how it works. You write a Markdown file. Curtiz recognizes special Markdown headings as flashcards that you want to learn about. You can tell Curtiz you want to `learn` new flashcards, or to `quiz` you on flashcards you already know. In either case, it modifies the Markdown file in-place.
 
-There are two kinds of flashcards that Curtiz currently knows about:
-- vocabulary, i.e., a reading (or pronunciation) in kana, a translation, and optionally, kanji, and
-- sentences, with optional translation.
+> If you're not familiar with Markdown, you're in for a treat: this is the markup used to format documents on GitHub, Stack Overflow, etc. See GitHub's guide, [Mastering Markdown](https://guides.github.com/features/mastering-markdown/) for a quick introduction.
 
-Sentences are pretty fancy! Assuming your system has [MeCab](https://taku910.github.io/mecab/) (a morphological parser and part-of-speech tagger), [MeCab-UniDic](https://osdn.net/projects/unidic/) (a powerful dictionary for MeCab), and [J.DepP](http://www.tkl.iis.u-tokyo.ac.jp/~ynaga/jdepp/) (a depedency parser and bunsetsu chunker that consumes the output of MeCab) installed, Curtiz will parse sentences and make a list of
+Curtiz can be pretty fancy with Japanese flashcards! Assuming your system has
+- [MeCab](https://taku910.github.io/mecab/), a morphological parser and part-of-speech tagger,
+- [MeCab-UniDic](https://osdn.net/projects/unidic/), a powerful dictionary for MeCab, and
+- [J.DepP](http://www.tkl.iis.u-tokyo.ac.jp/~ynaga/jdepp/) (a depedency parser and bunsetsu chunker that consumes the output of MeCab
+
+installed, Curtiz can parse Japanese text and automatically create flashcards for all
 - conjugated phrases (verbs and adjectives), and
-- particles (は, が, の, で, etc.),
+- particles (は, が, の, で, etc.)!
 
-and modify your Markdown file to contain all this extra information. Curtiz will track your memory of each conjugated phrase and particles as a flashcard, just like vocabulary. If Curtiz decides to quiz you on a sentence, it'll either ask you to type in either
-1. all conjugated phrases, or
-1. all (sensible) particles.
+As you might expect, it updates the Markdown file with this data.
 
-**N.B.** You just need MeCab and J.DepP once, to parse sentences. If Curtiz detects that your Markdown file already contains all the grammar details, it will not attempt to call either of these tools.
+Along with the Japanese text's reading (pronunciation), Curtiz will also track your memory of each conjugated phrase and particle as a flashcard. So during quizzes, Curtiz might show you the sentence's translation and ask you to fill-in-the-blank with a conjugated phrase or a particle.
+
+**N.B.** You don't need MeCab and J.DepP: you can explicitly tell Curtiz about the subtext that *you* want it to track, and in fact, they can be entirely arbitrary, only semantically-related sub-flashcards.
 
 ## Installation
 
@@ -61,7 +34,19 @@ $ npm run build
 ```
 You are asking `git` to clone this repository from GitHub to your computer, then `cd` to enter the newly-cloned directory, then `npm` (Node.js Package Manager that was installed alongside Node.js) to `install` dependencies and compile (`build`) my TypeScript source code to JavaScript (which Node.js can run).
 
-Next you need to install MeCab, UniDic, and J.DepP. Write to me if you need help with this—they are easy to install on macOS (`brew install mecab mecab-unidic`, but then J.DepP has to be compiled and installed manually). I am also preparing a Docker container with these dependencies.
+If you want automatic reading generation and automatic conjugations/particles detection, you need to install MeCab, UniDic, and J.DepP. Please feel free to write to me if the following sketch is insufficient. On macOS, I install the first two via `brew install mecab mecab-unidic` with the always-superb [Homebrew](https://brew.sh/).
+
+[J.DepP](http://www.tkl.iis.u-tokyo.ac.jp/~ynaga/jdepp/#dl) has to be compiled and installed manually, so here's how I do it on macOS or a Unix system:
+```
+$ curl -O http://www.tkl.iis.u-tokyo.ac.jp/~ynaga/jdepp/jdepp-latest.tar.gz
+$ tar zf jdepp-latest.tar.gz
+$ ./configure --with-mecab-dict=UNI
+$ make model
+$ make install
+```
+(You might need a `sudo` for `make install`?) This will download corpora from the internet and build the J.DepP source code. **N.B. This installation needs Python 2.** (I use the wonderful [pyenv](https://github.com/pyenv/pyenv#readme) to track my Pythons so it was trivial to set up the J.DepP directory to use Python 2.)
+
+I am also preparing a Docker container with these dependencies. (I'm also preparing Emscripten versions of these C++ applications so they can be `npm install`ed.)
 
 ## Usage
 This [`README.md`](README.md) that you're currently reading is a Curtiz-friendly Markdown file that you can use immediately. Try running the following:
@@ -70,53 +55,60 @@ $ node curtiz.js learn README.md
 ```
 Curtiz should invite you to learn the following bit of Japanese vocabulary:
 
-#### ◊!vocab かいしゃ: office: 会社
+#### ◊sent かいしゃ :: office :: 会社
 
-So. Curtiz looked through this Markdown file for a header block—a line starting with one or more `#`s—followed by a `◊` symbol (a lozenge, with much admiration towards [Pollen](https://docs.racket-lang.org/pollen/pollen-command-syntax.html#%28part._the-lozenge%29)) and the `vocab` keyword. Curtiz expects this to be followed by
-1. some text indicating pronunciation (probably some hiragana or katakana, though you can put whatever you want)
-2. a translation that it can use to prompt you for this pronunciation, and
-3. optionally some kanji (which it will also show you when asking you for the pronunciation).
+That is, Curtiz will look through this Markdown file for a header block—a line starting with one or more `#`s—containing
+- the `◊` symbol,
+- the `sent` keyword,
+- a reading (likely in hiragana, though you can make it whatever you want),
+- a translation, and
+- a written form (all the kanji you want).
+
+> ◊ is a lozenge. On macOS US English keyboard, it is `option-shift-v`; on other operating systems and phones, I set up an auto-converter that translates something like "loz" to ◊. I use this symbol with much admiration for [Pollen](https://docs.racket-lang.org/pollen/pollen-command-syntax.html#%28part._the-lozenge%29).
 
 If you actually ran the command above, you might notice that Curtiz has modified your copy of this README.md. It has added a Markdown bullet under the header above, something like `- ◊Ebisu1 `, followed by a date and several numbers. [Ebisu](https://fasiha.github.io/ebisu/) is the statistical scheduler that Curtiz uses to know what flashcards to review and when; the numbers are Ebisu "models" that track your memory of this flashcard (the reading, translation, and kanji are all separate "flashcards").
 
-> (If you don't yet know hiragana, head on over to [Naurvir's Memrise Hiragana course](https://www.memrise.com/course/43833/hiragana-2/) and you'll have it in a couple of days. Seriously, don't delay: Memrise's emphasis on visual mnemonics make it child's play to memorize the hiragana and [katakana](https://www.memrise.com/course/43875/katakana-2/).)
-
-> (Though I plan to add functionality for Curtiz to quiz you on kanji handwriting, it doesn't currently ask for anything other than the reading (pronunciation), not even the kanji or translation as multiple-choice, because picking out the correct kanji from a list is basically the same as practicing kanji-to-reading.)
+> (If you don't yet know hiragana, head on over to [Naurvir's Memrise Hiragana course](https://www.memrise.com/course/43833/hiragana-2/) and you'll have it in a couple of days. Seriously, don't delay: Memrise's emphasis on visual mnemonics make it child's play to memorize the hiragana and [katakana](https://www.memrise.com/course/43875/katakana-2/). (Though, it's better to learn the katakana *from* the hiragana, instead of learning both from English or your native language. Try to find a course that teaches katakana from the hiragana.))
 
 You can ask Curtiz to `quiz` you on what you just learned by running the following:
 ```
 $ node curtiz.js quiz README.md
 ```
-If you hit Control-C, Curtiz will exit without doing anything, but otherwise, it will update the Ebisu numbers based on whether or not you successfully typed in "かいしゃ" as the reading for "office/会社".
+If you hit Control-C, Curtiz will exit without doing anything, but otherwise, it will update the Ebisu numbers based on whether or not you successfully typed in "かいしゃ" as the reading for "会社". (Note it doesn't show you the translation. I'm open to changing this.)
 
-You may also have noticed that Ebisu added several lines to the following region of the file. Let's talk about sentences.
+Ebisu can also help you learn and practice longer sentences. Here's an example that shows you all the things you can do.
 
-### Sentences
-Assuming you have the requisite Japanese linguistic parsers and you have run one of the Curtiz commands above, you will see the following list of bullets *underneath* the following section block:
-- ◊morpheme 山田	ヤマダ	ヤマダ	ヤマダ	noun-proper-name-surname		
-- ◊morpheme は	ワ	ハ	は	particle-binding		
-- ◊morpheme 先生	センセー	センセイ	先生	noun-common-general		
-- ◊morpheme に	ニ	ニ	に	particle-case		
-- ◊morpheme ほめ	ホメ	ホメル	褒める	verb-general	shimoichidan_verb_e_row-ma_column	irrealis-general
-- ◊morpheme られ	ラレ	ラレル	られる	auxiliary_verb	auxiliary-reru	continuative-general
-- ◊morpheme た	タ	タ	た	auxiliary_verb	auxiliary-ta	conclusive-general
-- ◊morpheme 。			。	supplementary_symbol-period		
-- ◊bunsetsu 山田は :: 先生に :: ほめられた。
-- ◊particle は
-- ◊particle に
-- ◊conjugated ほめられた。
+#### ◊sent やまだはせんせいにほめられた :: Yamada was praised by the ninja. :: 山田はにんじゃにほめられた。
+- ◊related ほめる :: to praise :: 褒める
+- ◊related やまだ :: (proper name) :: 山田
+- ◊cloze conjugated められた
+- ◊cloze particle は
+- ◊cloze particle ゃ[に]ほ
 
-#### ◊!sent 山田は先生にほめられた。 :: Yamada was praised by the teacher.
+If a Curtiz header is followed immediately by a list of lozenge keywords, as above, Curtiz will understand that you want to tell it more about this sentence. Here are the three kinds of extra information you can give it:
+- related words, via `◊related`, following the same format of (1) reading, (2) translation, (3) *optional* written form. I use these to practice kanji→reading (or translation→reading, in the absence of a written form) of words that are related to the sentence.
+- Conjugated phrases via `◊cloze conjugated`, followed by the text of the conjugations, and similarly,
+- particles via `◊cloze partice`.
 
-Note how `◊sent` is the Curtiz keyword indicating sentence, and how it added extra information on bullets under the header, prefacing each bullet with a lozenge plus a keyword it understands. This is a core "feature" of Curtiz: rather than an external database, your human-editable Markdown file is its only database. (I do plan on integrating it with Git, to track reviews, but that is not necessary for learning and quizzing. Markdown + Curtiz is all you need.)
+For the latter two, if there is ambiguity about which part of the sentence represents the conjugated phrase or particle, you can provide some context, as in the last line above: "◊cloze particle ゃ[に]ほ" means "the particle is に, specifically the に in the sentence flanked by ゃ and ほ, and not the に in にんじゃ". Curtiz will warn you if these clozed phrases are ambiguous, so don't worry.
 
-So if you run `node curtiz.js learn README.md` again, Curtiz will invite you to learn the above sentence. Specifically you have to memorize
-1. the way the two particles, は and に are being used, as well as
-2. the conjugation of the verb, "ほめられた".
+> I call these "clozes" because cloze-deletion is a fancy word for "fill-in-the-blanks".
 
-When you ask Curtiz to quiz you, via `node curtiz.js quiz README.md`, it will likely ask you about the "office" vocabulary you learned above, but if you rerun the quiz command, it will ask you to reproduce either the particles or the conjugations in the sentence, via fill-in-the-blanks.
+So if you run `node curtiz.js learn README.md` again, Curtiz will invite you to learn the above sentence.
+
+When you ask Curtiz to quiz you, via `node curtiz.js quiz README.md`, it will ask you about the "office" vocabulary you learned first. After answering this and rerunning this command, it will ask you for
+- the full reading of the sentence,
+- the reading of one of the related words (the reading of 褒める or 山田),
+- the conjugated phrase "められた" via fill-in-the-blanks, *or*
+- one of the particles (は or に), also via fill-in-the-blanks.
 
 As far as command-line tools go, Curtiz won't win any awards, but I have sought to make it ergonomic to fill in blanks, out of order if you prefer, etc.
+
+If you have MeCab and J.DepP installed, you can leave off the reading, i.e., the above sentence's header block could be "◊sent :: Yamada was praised by the ninja. :: 山田はにんじゃにほめられた。" and after either `learn`ing or `quiz`ing, Curtiz will update the reading section before the first `::` separator. You could have left off the `◊cloze` lines and MeCab and J.DepP will also automatically populated them by analyzing the sentence for conjugated phrases and particles—I'd recommend checking these because sometimes these automatic tools do make mistakes. Don't worry, it won't overwrite any blocks that you've already learned.
+
+And if Curtiz does eat your homework, it always saves a backup, with the `.bak` extension.
+
+> Extra bonus feature: another way to ask Curtiz to parse the sentence is to add a `- ◊pleaseParse` bullet with the rest of the bullets.
 
 ## Name
 The name comes from Arakawa Hiromi's legendary manga, *Fullmetal Alchemist*, where Curtis Izumi is the powerful alchemist who took in the Elric brothers and taught them alchemy. The artist has said that this is her favorite scene:
