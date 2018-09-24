@@ -104,11 +104,12 @@ if (require.main === module) {
                     let responses = yield cloze(contexts);
                     let correct = toQuiz.postQuiz(quizName, clozes, responses, now);
                     let summary = toQuiz.block[0];
+                    summary = summary.slice(summary.indexOf(markdown_1.SentenceBlock.init) + markdown_1.SentenceBlock.init.length);
                     if (correct) {
-                        console.log('💥 🔥 🎆 🎇 👏 🙌 👍 👌!\n' + summary);
+                        console.log('💥 🔥 🎆 🎇 👏 🙌 👍 👌! ' + summary);
                     }
                     else {
-                        console.log('😭 🙅‍♀️ 🙅‍♂️ 👎 🤬. Correct answer:\n' + summary);
+                        console.log('😭 🙅‍♀️ 🙅‍♂️ 👎 🤬. Correct answer: ' + summary);
                     }
                 }
                 else {

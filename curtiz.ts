@@ -102,10 +102,11 @@ if (require.main === module) {
         let responses = await cloze(contexts);
         let correct = toQuiz.postQuiz(quizName, clozes, responses, now);
         let summary = toQuiz.block[0];
+        summary = summary.slice(summary.indexOf(SentenceBlock.init) + SentenceBlock.init.length);
         if (correct) {
-          console.log('💥 🔥 🎆 🎇 👏 🙌 👍 👌!\n' + summary);
+          console.log('💥 🔥 🎆 🎇 👏 🙌 👍 👌! ' + summary);
         } else {
-          console.log('😭 🙅‍♀️ 🙅‍♂️ 👎 🤬. Correct answer:\n' + summary);
+          console.log('😭 🙅‍♀️ 🙅‍♂️ 👎 🤬. Correct answer: ' + summary);
         }
       } else {
         throw new Error('Unhandled quiz type');
