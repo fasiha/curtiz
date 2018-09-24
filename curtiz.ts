@@ -13,14 +13,8 @@ For Ebisu-related scheduling debug information:
 
 import {fill} from './cliFillInTheBlanks';
 import {cliPrompt} from './cliPrompt';
-import {
-  Content,
-  Quizzable,
-  SentenceBlock,
-  textToBlocks,
-  verifyAll,
-} from './markdown';
-import {enumerate, fillHoles, argmin} from './utils';
+import {Content, Quizzable, SentenceBlock, textToBlocks, verifyAll} from './markdown';
+import {fillHoles} from './utils';
 import {Ebisu} from './ebisu';
 
 const ensureFinalNewline = (s: string) => s.endsWith('\n') ? s : s + '\n';
@@ -52,7 +46,6 @@ async function cloze(clozes: Array<string|null>): Promise<string[]> {
         responses.push(thisResponse.trim());
       }
     }
-    console.log(fillHoles(clozes.slice(), responses).map((c, i) => c ? c : printableCloze[i]).join(''));
     return responses.every(o => !!o); // exit criteria
   });
   return responses;

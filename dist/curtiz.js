@@ -22,7 +22,6 @@ For Ebisu-related scheduling debug information:
 const cliFillInTheBlanks_1 = require("./cliFillInTheBlanks");
 const cliPrompt_1 = require("./cliPrompt");
 const markdown_1 = require("./markdown");
-const utils_1 = require("./utils");
 const ensureFinalNewline = (s) => s.endsWith('\n') ? s : s + '\n';
 const contentToString = (content) => ensureFinalNewline(content.map(o => (o instanceof Array ? o : o.block).join('\n')).join('\n'));
 function cloze(clozes) {
@@ -53,7 +52,6 @@ function cloze(clozes) {
                     responses.push(thisResponse.trim());
                 }
             }
-            console.log(utils_1.fillHoles(clozes.slice(), responses).map((c, i) => c ? c : printableCloze[i]).join(''));
             return responses.every(o => !!o); // exit criteria
         });
         return responses;
