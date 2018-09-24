@@ -110,7 +110,6 @@ test('postQuiz', async t => {
   let initModels =
       new Map([...utils.zip(Array.from(content[0].ebisu.keys()), Array.from(content[0].ebisu.values(), e => e.model))]);
   let block = content[0].block.slice();
-  console.log(block.join('\n'))
   for (let name of content[0].ebisu.keys()) {
     let clozeStruct = content[0].preQuiz(undefined, name);
     content[0].postQuiz(name, clozeStruct.clozes, ['WRONG'], now);
@@ -127,4 +126,17 @@ test('postQuiz', async t => {
   t.end();
 });
 
-// TODO: ◊part
+test('Part', async t => {
+  let raw = `# ◊sent :: My mom's car's color. :: 私のお母さんの車の色。
+- ◊part わたし/私`;
+  let content = md.textToBlocks(raw);
+  await content[0].verify();
+  content[0].learn();
+  let clozeStruct = content[0].preQuiz(undefined, '- ◊part わたし/私');
+  // One of the context strings should have the kanji in question
+  t.ok(clozeStruct.contexts.some(s => s.indexOf('私') >= 0));
+  // And one of the cloze strings should have the reading in question
+  t.ok(clozeStruct.clozes.some(s => s.indexOf('わたし') >= 0));
+
+  t.end();
+});
