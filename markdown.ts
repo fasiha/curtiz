@@ -338,11 +338,11 @@ export class SentenceBlock extends Quizzable {
     let hit: number;
     if ((hit = quizName.indexOf(SentenceBlock.clozedConjugationStart)) >= 0) {
       let cloze = quizName.slice(hit + SentenceBlock.clozedConjugationStart.length).trim();
-      let [contexts, clozes] = extractClozed(this.sentence, cloze);
+      let [contexts, clozes] = extractClozed(this.sentence + ` (${this.translation})`, cloze);
       return {quizName, contexts, clozes};
     } else if ((hit = quizName.indexOf(SentenceBlock.clozedParticleStart)) >= 0) {
       let cloze = quizName.slice(hit + SentenceBlock.clozedParticleStart.length).trim();
-      let [contexts, clozes] = extractClozed(this.sentence, cloze);
+      let [contexts, clozes] = extractClozed(this.sentence + ` (${this.translation})`, cloze);
       return {quizName, contexts, clozes};
     } else if ((hit = quizName.indexOf(SentenceBlock.relatedStart)) >= 0) {
       let related = quizName.slice(hit + SentenceBlock.relatedStart.length);
@@ -529,23 +529,12 @@ if (require.main === module) {
     // Read Markdown
     const filename = process.argv[2];
     let txt: string = await readFile(filename, 'utf8');
-    // Save backup (no await, just run this later)
-    writeFile(filename + '.bak', txt);
 
     // Validate it
     let content = textToBlocks(txt);
-    console.log(content);
-
     let quizs: SentenceBlock[] = content.filter(o => o instanceof SentenceBlock) as SentenceBlock[];
     let q = quizs[0];
-    let origBlock = q.block.slice();
-
     await q.verify();
-    console.log(">>> after verifying", q);
-
-    q.learn();
-    console.log('>>> block after learning', q.block);
-    // Save file
-    // writeFile(filename, contentToString(content));
+    console.log(q);
   })();
 }
