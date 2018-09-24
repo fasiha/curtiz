@@ -166,9 +166,13 @@ if (require.main === module) {
       let sorted = learned.slice();
       sorted.sort((a, b) => a.predict(now) - b.predict(now));
       console.log(sorted
-                      .map(o => 'Precall=' + (100 * o.predict(now)).toFixed(1) + '%  hl=' +
-                                (o.ebisu instanceof Array ? halflife(o.ebisu[0]) : halflife(o.ebisu)).toExponential(2) +
-                                'hours  ' + o.block[0])
+                      .map(o => {
+                        let status: {ebisu?: Ebisu} = {};
+                        let precall = o.predict(now, status);
+                        if (!status.ebisu) { throw new Error('TypeScript pacification: predict-!>Ebisu obj'); }
+                        return 'Precall=' + (100 * precall).toFixed(1) +
+                               '%  hl=' + halflife(status.ebisu).toExponential(2) + 'hours  ' + o.block[0]
+                      })
                       .join('\n'));
     } else {
       console.error('Unknown mode. See usage below.');

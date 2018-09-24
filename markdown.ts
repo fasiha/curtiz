@@ -10,7 +10,7 @@ const ebisuInit: string = '- ◊Ebisu' + ebisuVersion + ' ';
 const ebisuDateSeparator = ';';
 
 export abstract class Quizzable {
-  abstract predict(now?: Date): number;
+  abstract predict(now?: Date, ebisu?: any): number;
   abstract learn(now?: Date, scale?: number): void;
   abstract preQuiz(now?: Date, quizName?: string): {quizName: string, contexts: (string|null)[], clozes: string[]};
   abstract postQuiz(quizName: string, clozes: string[], results: string[], now?: Date): boolean;
@@ -275,9 +275,14 @@ export class SentenceBlock extends Quizzable {
       }
     }
   }
-  predict(now?: Date): number {
+  predict(now?: Date, ebisu?: {ebisu?: Ebisu}): number {
     if (!this.ebisu) { return Infinity; }
-    return Math.min(...Array.from(this.ebisu.values()).map(e => e.predict(now)));
+    if (!ebisu) { return Math.min(...Array.from(this.ebisu.values(), e => e.predict(now))); }
+    // If predict asked for the lowest-probability Ebisu object:
+    let status: {min?: Ebisu, minmapped?: number} = {};
+    argmin(Array.from(this.ebisu.values()), e => e.predict(now), status);
+    ebisu.ebisu = status.min;
+    return typeof status.minmapped === 'undefined' ? Infinity : status.minmapped;
   }
   learn(now?: Date, scale: number = 1) {
     now = now || new Date();
