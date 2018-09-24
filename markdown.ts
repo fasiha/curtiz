@@ -405,6 +405,20 @@ export class SentenceBlock extends Quizzable {
     let clozedConjugations: Set<string> = new Set([]);
     const particlePredicate = (p: Morpheme) => p.partOfSpeech[0].startsWith('particle') && p.partOfSpeech.length > 1 &&
                                                !p.partOfSpeech[1].startsWith('phrase_final');
+    {
+      const morphemes = flatten(bunsetsus);
+      if (morphemes.length > 1) {
+        let relatedMaybeInit = SentenceBlock.relatedStart.trimRight() + '?? ';
+        // purge existing ◊related?? blocks
+        this.block = this.block.filter(s => !s.includes(relatedMaybeInit));
+        // add ◊related?? blocks
+        for (let morpheme of morphemes) {
+          if (hasKanji(morpheme.literal)) {
+            this.block.push(`${relatedMaybeInit}${kata2hira(morpheme.lemmaReading)} :: ? :: ${morpheme.lemma}`)
+          }
+        }
+      }
+    }
     for (let [bidx, bunsetsu] of enumerate(bunsetsus)) {
       let first = bunsetsu[0];
       if (!first) { continue; }
@@ -509,17 +523,16 @@ export async function verifyAll(content: Content[]) {
 }
 
 const ensureFinalNewline = (s: string) => s.endsWith('\n') ? s : s + '\n';
-const contentToString = (content: Array<Content>) =>
+const contentToString = (content: Content[]) =>
     ensureFinalNewline(content.map(o => (o instanceof Array ? o : o.block).join('\n')).join('\n'));
 
 const USAGE = `USAGE:
 $ node [this-script.js] [markdown.md]
-will validate markdown.md in-place (after creating a markdown.md.bak).`;
+will print a parsed version of the input Markdown.`;
 
 if (require.main === module) {
   const promisify = require('util').promisify;
   const readFile = promisify(require('fs').readFile);
-  const writeFile = promisify(require('fs').writeFile);
   (async function() {
     if (process.argv.length < 3) {
       console.log(USAGE);
@@ -532,9 +545,7 @@ if (require.main === module) {
 
     // Validate it
     let content = textToBlocks(txt);
-    let quizs: SentenceBlock[] = content.filter(o => o instanceof SentenceBlock) as SentenceBlock[];
-    let q = quizs[0];
-    await q.verify();
-    console.log(q);
+    await verifyAll(content);
+    console.log(contentToString(content));
   })();
 }

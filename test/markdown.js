@@ -46,7 +46,7 @@ test('Learning and quizzing', async t => {
     t.equal(clozeStruct.quizName, name);
     t.equal(clozeStruct.contexts.filter(s => !s).length, clozeStruct.clozes.length);
     if (name.indexOf('◊cloze') >= 0) {
-      t.ok(utils.fillHoles(clozeStruct.contexts, clozeStruct.clozes).join('').match(content[0].sentence));
+      t.ok(utils.fillHoles(clozeStruct.contexts, clozeStruct.clozes).join('').includes(content[0].sentence));
     }
   }
   t.end();
@@ -92,7 +92,7 @@ test('What happens with multiple same particle? Each different particle is track
   for (let name of content[0].ebisu.keys()) {
     let clozeStruct = content[0].preQuiz(undefined, name);
     if (name.indexOf('◊cloze') >= 0) {
-      t.ok(utils.fillHoles(clozeStruct.contexts, clozeStruct.clozes).join('').match(content[0].sentence));
+      t.ok(utils.fillHoles(clozeStruct.contexts, clozeStruct.clozes).join('').includes(content[0].sentence));
     }
   }
   t.end();
