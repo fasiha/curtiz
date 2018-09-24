@@ -207,9 +207,9 @@ export class SentenceBlock extends Quizzable {
     for (const key of this.ebisuNameToLino.keys()) { this.ebisuNameToLino.delete(key); }
     for (const key of this.clozeNameToLino.keys()) { this.clozeNameToLino.delete(key); }
     this.extractTopLevelEbisu();
-    this.extractClozesRelateds();
+    this.extractClozesRelatedsAndEbisu();
   }
-  extractClozesRelateds() {
+  extractClozesRelatedsAndEbisu() {
     const regexps = [
       SentenceBlock.clozedConjugationStart,
       SentenceBlock.clozedParticleStart,
@@ -283,6 +283,7 @@ export class SentenceBlock extends Quizzable {
     now = now || new Date();
     this.ebisu = new Map([]);
     const make = () => Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, now);
+
     const looper = (v: string[], init: string, map: Map<string, Ebisu>) => {
       for (let p of v) {
         let name = init + p;
@@ -316,6 +317,8 @@ export class SentenceBlock extends Quizzable {
       let eStrings = ebisu.toString();
       this.block.push(ebisuInit + name + ' ' + eStrings[0] + ebisuDateSeparator + ' ' + eStrings[1])
     }
+
+    this.extractAll();
   }
   preQuiz(now?: Date, quizName?: string): {quizName: string, contexts: (string|null)[], clozes: string[]} {
     if (!this.ebisu) { throw new Error('Block has not yet been learned: no Ebisu map'); }

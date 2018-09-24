@@ -85,7 +85,7 @@ test('Kanji in conjugated phrase will be needed during quiz', async t => {
 });
 
 test('What happens with multiple same particle? Each different particle is tracked. 😎', async t => {
-  let raw = `# ◊sent :: The teacher praised the carrot. :: 私のお母さんの車の色。`;
+  let raw = `# ◊sent :: My mom's car's color. :: 私のお母さんの車の色。`;
   let content = md.textToBlocks(raw);
   await content[0].verify();
   content[0].learn();
@@ -98,4 +98,33 @@ test('What happens with multiple same particle? Each different particle is track
   t.end();
 });
 
-// TODO: ◊part, postQuiz
+test('postQuiz', async t => {
+  let raw = `# ◊sent :: My mom's car's color. :: 私のお母さんの車の色。`;
+  let content = md.textToBlocks(raw);
+  await content[0].verify();
+
+  let now = new Date();
+  let hourAgo = new Date(now.valueOf() - 36e5);
+  content[0].learn(hourAgo);
+
+  let initModels =
+      new Map([...utils.zip(Array.from(content[0].ebisu.keys()), Array.from(content[0].ebisu.values(), e => e.model))]);
+  let block = content[0].block.slice();
+  console.log(block.join('\n'))
+  for (let name of content[0].ebisu.keys()) {
+    let clozeStruct = content[0].preQuiz(undefined, name);
+    content[0].postQuiz(name, clozeStruct.clozes, ['WRONG'], now);
+
+    // The model of the quiz under the test will change, but the rest will stay the same (passive update). BECAUSE, we
+    // assume the full sentence is shown to the user after each quiz. Apps that don't do this will have to revisit this
+    // assumption.
+    for (let [k, v] of content[0].ebisu) { (k === name ? t.notDeepEqual : t.deepEqual)(v.model, initModels.get(name)); }
+
+    // reset clock
+    content[0].block = block.slice();
+    content[0].extractAll();
+  }
+  t.end();
+});
+
+// TODO: ◊part
