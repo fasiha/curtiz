@@ -1,7 +1,19 @@
+/**
+ * Does an input string have any kanji? Applies XRegExp's '\Han' Unicode block test.
+ * @param s string to test
+ * See https://stackoverflow.com/questions/7344871/javascript-regular-expression-to-catch-kanji#comment91884309_7351856
+ */
 export function hasKanji(s: string): boolean {
-  const k = /[⺀-⺙⺛-⻳⼀-⿕々〇〡-〩〸-〻㐀-䶵一-鿕豈-舘並-龎]/;
+  const k =
+      /[\u2E80-\u2E99\u2E9B-\u2EF3\u2F00-\u2FD5\u3005\u3007\u3021-\u3029\u3038-\u303B\u3400-\u4DB5\u4E00-\u9FEF\uF900-\uFA6D\uFA70-\uFAD9]/;
   return k.test(s);
 }
+
+/**
+ * Flatten once.
+ * @param arr array of arrays
+ */
+export function flatten<T>(arr: T[][]): T[] { return arr.reduce((memo, curr) => memo.concat(curr), []); }
 
 /**
  * Generates `[index, value]` 2-tuples, so you can `for (let [index, value] of enumerate(v) {...})`.
@@ -14,6 +26,20 @@ export function* enumerate<T>(v: T[]|IterableIterator<T>, n: number = 0): Iterab
   for (let x of v) { yield [n++, x]; }
 }
 
+/**
+ * Generates tuples slicing across each of the input arrays, like Python's zip.
+ * @param arrs arrays to zip over
+ *
+ * Outputs only as many times as the *shortest* input array.
+ * Example:
+ * `for (let [num, let] of zip([1, 2, 3], ['one', 'two', 'three', 'four'])) { console.log(num, let); }` produces the
+ * following:
+ * - `[1, 'one']`
+ * - `[2, 'two']`
+ * - `[3, 'three']`
+ *
+ * Hat tip: https://docs.python.org/3/library/functions.html#zip
+ */
 export function* zip(...arrs: any[][]) {
   const stop = Math.min(...arrs.map(v => v.length));
   for (let i = 0; i < stop; i++) { yield arrs.map(v => v[i]); }

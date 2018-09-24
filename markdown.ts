@@ -2,13 +2,12 @@ import {Ebisu} from './ebisu';
 import * as jdepp from './jdepp';
 import {kata2hira} from './kana';
 import {goodMorphemePredicate, invokeMecab, maybeMorphemesToMorphemes, Morpheme, parseMecab} from './mecabUnidic';
-import {argmin, enumerate, filterRight, setEq, zip} from './utils';
+import {argmin, enumerate, filterRight, flatten, hasKanji, setEq, zip} from './utils';
 
 const DEFAULT_HALFLIFE_HOURS = 0.25;
 const ebisuVersion = '1';
 const ebisuInit: string = '- ◊Ebisu' + ebisuVersion + ' ';
 const ebisuDateSeparator = ';';
-const ebisuSuperSeparator = ';';
 
 export abstract class Quizzable {
   abstract predict(now?: Date): number;
@@ -55,25 +54,40 @@ function generateContextClozed(left: string, cloze: string, right: string): stri
   if (leftContext === '' && rightContext === '') { return cloze; }
   return `${leftContext}[${cloze}]${rightContext}`;
 }
-function extractClozed(haystack: string, needleWithContext: string): [(string | null)[], string[]] {
+
+/**
+ * Given a big string and a substring, which can be either
+ * - a strict substring or
+ * - a cloze-deleted string like "left[cloze]right", where only "cloze" should be treated as the substring of interest
+ * but where "left" and "right" uniquely determine which appearance of "cloze" in the big string is desired,
+ *
+ * break the big string into two arrays:
+ * 1. [the content to the *left* of the substring/cloze, `null`, the content to the *right* of the substring/cloze], and
+ * 1. [the substring/cloze].
+ *
+ * Replacing `null` in the first array with the contents of the second array will yield `haystack` again.
+ * @param haystack Long string
+ * @param needleMaybeContext
+ */
+function extractClozed(haystack: string, needleMaybeContext: string): [(string | null)[], string[]] {
   let re = /\[([^\]]+)\]/;
-  let bracketMatch = needleWithContext.match(re);
+  let bracketMatch = needleMaybeContext.match(re);
   if (bracketMatch) {
     if (typeof bracketMatch.index !== 'number') { throw new Error('TypeScript pactification: match.index invalid'); }
     let cloze = bracketMatch[1];
-    let leftContext = needleWithContext.slice(0, bracketMatch.index);
-    let rightContext = needleWithContext.slice(bracketMatch.index + bracketMatch[0].length);
+    let leftContext = needleMaybeContext.slice(0, bracketMatch.index);
+    let rightContext = needleMaybeContext.slice(bracketMatch.index + bracketMatch[0].length);
     if (re.test(rightContext)) { throw new Error('More than one context unsupported'); }
 
     let fullRe = new RegExp(leftContext + cloze + rightContext, 'g');
     let checkContext = fullRe.exec(haystack);
     if (!checkContext) { throw new Error('Needle not found in haystack'); }
     const left = haystack.slice(0, checkContext.index + leftContext.length);
-    const right = haystack.slice(checkContext.index + checkContext[0].length);
+    const right = haystack.slice(checkContext.index + checkContext[0].length - rightContext.length);
     if (fullRe.exec(haystack)) { throw new Error('Insufficient cloze context'); }
     return [[left, null, right], [cloze]];
   }
-  let cloze = needleWithContext;
+  let cloze = needleMaybeContext;
   let clozeRe = new RegExp(cloze, 'g');
   let clozeHit = clozeRe.exec(haystack);
   if (clozeHit) {
@@ -84,12 +98,14 @@ function extractClozed(haystack: string, needleWithContext: string): [(string | 
   }
   throw new Error('Could not find cloze');
 }
+
 async function parse(sentence: string): Promise<{morphemes: Morpheme[]; bunsetsus: Morpheme[][];}> {
   let rawMecab = await invokeMecab(sentence);
   let morphemes = maybeMorphemesToMorphemes(parseMecab(sentence, rawMecab)[0].filter(o => !!o));
   let bunsetsus = await addJdepp(rawMecab, morphemes);
   return {morphemes, bunsetsus};
 }
+
 async function addJdepp(raw: string, morphemes: Morpheme[]): Promise<Morpheme[][]> {
   let jdeppRaw = await jdepp.invokeJdepp(raw);
   let jdeppSplit = jdepp.parseJdepp('', jdeppRaw);
@@ -104,17 +120,22 @@ async function addJdepp(raw: string, morphemes: Morpheme[]): Promise<Morpheme[][
   }
   return bunsetsus;
 }
+
+const bunsetsuToString = (morphemes: Morpheme[]) => morphemes.map(m => m.literal).join('');
+
 function findDashIndex(s: string): number {
   let dashMatch = s.match(/-/);
   if (!dashMatch || dashMatch.index === undefined) { throw new Error('TypeScript pacification: regexp failed?'); }
   return dashMatch.index;
 }
+
 function findSubBlockLength(block: string[], startIdx: number): number {
   let headSpaces = findDashIndex(block[startIdx]);
   let subBullets = block.slice(startIdx + 1).findIndex(s => findDashIndex(s) <= headSpaces);
   if (subBullets < 0) { return block.length - startIdx; }
   return subBullets + 1;
 }
+
 function blockToFirstEbisu(block: string[], status?: {lino?: number}) {
   const ebisuRegexp = new RegExp('^\\s*' + ebisuInit);
   const nonwsRegexp = /\S+/;
@@ -134,6 +155,7 @@ function blockToFirstEbisu(block: string[], status?: {lino?: number}) {
   }
   return null;
 }
+
 function updateBlockEbisu(block: string[], startIdx: number, ebisu: Ebisu) {
   let rows = findSubBlockLength(block, startIdx);
   const ebisuRegexp = new RegExp('^\\s*' + ebisuInit + '[^ ]+ ');
@@ -300,10 +322,8 @@ export class SentenceBlock extends Quizzable {
     if (!quizName) {
       let findQuiz: {min?: [string, Ebisu]|undefined} = {};
       let quizIdx = argmin(this.ebisu.entries(), ([, v]) => v.predict(now), findQuiz)
-      console.log('going to quiz', findQuiz.min);
-      if (quizIdx >= 0 && findQuiz.min) {
-        quizName = findQuiz.min[0];
-      } else {
+      if (quizIdx >= 0 && findQuiz.min) { quizName = findQuiz.min[0]; }
+      else {
         throw new Error('Cannot find Ebisu model for quiz');
       }
     } else if (!this.ebisu.has(quizName)) {
@@ -349,6 +369,26 @@ export class SentenceBlock extends Quizzable {
     const pleaseParseRegexp = /^\s*- ◊pleaseParse/;
     if (this.reading === '' || this.block.some(s => pleaseParseRegexp.test(s))) {
       let {bunsetsus} = await parse(this.sentence);
+      const parsedReading =
+          flatten(bunsetsus)
+              .filter(m => m.partOfSpeech[0] !== 'supplementary_symbol')
+              .map(m => hasKanji(m.literal) ? kata2hira(m.literal === m.lemma ? m.lemmaReading : m.pronunciation)
+                                            : m.literal)
+              .join('');
+      if (this.reading !== parsedReading) {
+        if (this.reading.length === 0) {
+          this.reading = parsedReading;
+          let oldHeader = this.block[0];
+          let hit = oldHeader.indexOf(SentenceBlock.init);
+          if (hit < 0) { throw new Error('Init string not found in block header?'); }
+          let hit2 = oldHeader.indexOf(SentenceBlock.translationSep, hit + SentenceBlock.init.length);
+          if (hit2 < 0) { throw new Error('Separator not found in block header?'); }
+          // reading should be between `hit + SentenceBlock.init.length+1` and `hit2`.
+          let newHeader =
+              oldHeader.slice(0, hit + SentenceBlock.init.length + 1) + parsedReading + ' ' + oldHeader.slice(hit2);
+          this.block[0] = newHeader;
+        }
+      }
       this.identifyQuizItems(bunsetsus);
       this.block = this.block.filter(s => !pleaseParseRegexp.test(s));
       this.extractAll();
@@ -357,14 +397,14 @@ export class SentenceBlock extends Quizzable {
   identifyQuizItems(bunsetsus: Morpheme[][]) {
     let clozedParticles: Set<string> = new Set([]);
     let clozedConjugations: Set<string> = new Set([]);
-    const bunsetsuToString = (morphemes: Morpheme[]) => morphemes.map(m => m.literal).join('');
     const particlePredicate = (p: Morpheme) => p.partOfSpeech[0].startsWith('particle') && p.partOfSpeech.length > 1 &&
                                                !p.partOfSpeech[1].startsWith('phrase_final');
+    // console.log(bunsetsus);
     for (let [bidx, bunsetsu] of enumerate(bunsetsus)) {
       let first = bunsetsu[0];
       if (!first) { continue; }
       const pos0 = first.partOfSpeech[0];
-      if (bunsetsu.length > 1 && (pos0.startsWith('verb') || pos0.startsWith('adject'))) {
+      if (bunsetsu.length > 1 && (pos0.startsWith('verb') || pos0.endsWith('_verb') || pos0.startsWith('adject'))) {
         let ignoreRight = filterRight(bunsetsu, m => !goodMorphemePredicate(m));
         let cloze = bunsetsuToString(ignoreRight.length === 0 ? bunsetsu : bunsetsu.slice(0, -ignoreRight.length));
         let left = bunsetsus.slice(0, bidx).map(bunsetsuToString).join('');
@@ -407,7 +447,7 @@ export class SentenceBlock extends Quizzable {
       let nbullets = findSubBlockLength(this.block, lino);
       this.block.splice(lino, nbullets);
     }
-    const initialSpaces = ' '.repeat(findDashIndex(this.block[1]));
+    const initialSpaces = ' '.repeat(this.block[1] ? findDashIndex(this.block[1]) : 0);
     for (let c of clozedConjugations) { this.block.push(initialSpaces + SentenceBlock.clozedConjugationStart + c); }
     for (let p of clozedParticles) { this.block.push(initialSpaces + SentenceBlock.clozedParticleStart + p); }
     this.clozedParticles = Array.from(clozedParticles);
