@@ -184,7 +184,7 @@ export class SentenceBlock extends Quizzable {
   static init: string = '◊sent';
   static clozedParticleStart = '- ◊cloze particle ';
   static clozedConjugationStart = '- ◊cloze conjugation ';
-  static relatedStart = '- ◊part ';
+  static relatedStart = '- ◊related ';
   static translationSep = '::';
 
   constructor(block: string[]) {
