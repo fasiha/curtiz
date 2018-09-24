@@ -361,6 +361,11 @@ function decompressMorpheme(s) {
 exports.decompressMorpheme = decompressMorpheme;
 function decompressMorphemes(s) { return s.split(BUNSETSUSEP).map(decompressMorpheme); }
 exports.decompressMorphemes = decompressMorphemes;
+function goodMorphemePredicate(m) {
+    return !(m.partOfSpeech[0] === 'supplementary_symbol') &&
+        !(m.partOfSpeech[0] === 'particle' && m.partOfSpeech[1] === 'phrase_final');
+}
+exports.goodMorphemePredicate = goodMorphemePredicate;
 if (require.main === module) {
     const readFile = require('fs').readFile;
     const promisify = require('util').promisify;
@@ -377,9 +382,22 @@ if (require.main === module) {
                     .join('\n')
                     .replace(/\r/g, '');
             }
-            const formatter = (arr) => arr.map(arr => '  [ ' + arr.map(x => JSON.stringify(x)).join(',\n    ')).join(' ],\n');
-            const ldjsonFormatter = (arr) => arr.map(x => JSON.stringify(x)).join('\n');
-            console.log(ldjsonFormatter(parseMecab(text, yield invokeMecab(text.trim()))));
+            const parsed = parseMecab(text, yield invokeMecab(text.trim()));
+            for (const sentence of parsed) {
+                for (const morpheme of sentence) {
+                    if (morpheme) {
+                        console.log(ultraCompressMorpheme(morpheme));
+                    }
+                    else {
+                        console.log('---');
+                    }
+                }
+            }
+            if (false) {
+                const formatter = (arr) => arr.map(arr => '  [ ' + arr.map(x => JSON.stringify(x)).join(',\n    ')).join(' ],\n');
+                const ldjsonFormatter = (arr) => arr.map(x => JSON.stringify(x)).join('\n');
+                console.log(ldjsonFormatter(parsed));
+            }
         });
     })();
 }

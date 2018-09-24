@@ -161,3 +161,6 @@ test('Throw when no kanji', async t => {
   t.throws(() => md.textToBlocks(raw))
   t.end();
 });
+
+// TODO 3: check if multiple blocks declare the same `◊related`. At least warn. Ideally, quizzing one of these ◊relateds
+// updates all their Ebisus.
