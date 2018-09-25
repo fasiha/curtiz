@@ -207,3 +207,25 @@ test('Throw when no kanji', async t => {
 });
 // TODO 2: check if multiple blocks declare the same `◊related`. At least warn. Ideally, quizzing one of these ◊relateds
 // updates all their Ebisus.
+
+test('quizzing a partially-learned block learns them all', async t => {
+  let now = new Date();
+  let hourAgo = new Date(now.valueOf() - 36e5);
+
+  let raw = `# ◊sent ごじまで　:: till 5 o'clock :: 五時まで
+- ◊Ebisu1 reading ${hourAgo.toISOString()}, 3,3,0.25
+- ◊related まで :: till`;
+  let content = md.textToBlocks(raw);
+  let s: md.SentenceBlock = content[0] as md.SentenceBlock;
+  t.assert(s instanceof md.SentenceBlock);
+  await s.verify();
+  let pred = s.predict();
+  t.ok(pred);
+  if (!pred) { throw new Error('typescript/tape pacification'); }
+
+  t.ok(s.bullets.filter(b => b instanceof md.Quiz).some(q => !((q as md.Quiz).ebisu)));
+  s.postQuiz(pred.quiz, ['x'], ['y'], now);
+  t.ok(pred.quiz.ebisu);
+  t.ok(s.bullets.filter(b => b instanceof md.Quiz).every(q => (q as md.Quiz).ebisu));
+  t.end();
+});

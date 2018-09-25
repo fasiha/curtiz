@@ -335,7 +335,6 @@ export class SentenceBlock extends Quizzable {
             quiz.ebisu = Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, now);
           }
         }
-      } else {
       }
     }
     return correct;
