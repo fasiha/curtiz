@@ -83,6 +83,8 @@ $ node curtiz.js quiz README.md
 ```
 If you hit Control-C, Curtiz will exit without doing anything, but otherwise, it will update the Ebisu numbers based on whether or not you successfully typed in "かいしゃ" as the reading for "会社". (Note it doesn't show you the translation. I'm open to changing this.)
 
+## Advanced usage: cloze-deletion `◊cloze` and normal flashcards `◊related`
+
 Ebisu can also help you learn and practice longer sentences. Here's an example that shows you all the things you can do.
 
 #### ◊sent やまだはせんせいにほめられた :: Yamada was praised by the ninja. :: 山田はにんじゃにほめられた。
@@ -93,9 +95,9 @@ Ebisu can also help you learn and practice longer sentences. Here's an example t
 - ◊cloze particle ゃ[に]ほ
 
 If a Curtiz header is followed immediately by a list of lozenge keywords, as above, Curtiz will understand that you want to tell it more about this sentence. Here are the three kinds of extra information you can give it:
-- related words, via `◊related`, following the same format of (1) reading, (2) translation, (3) *optional* written form. I use these to practice kanji→reading (or translation→reading, in the absence of a written form) of words that are related to the sentence.
-- Conjugated phrases via `◊cloze conjugated`, followed by the text of the conjugations, and similarly,
-- particles via `◊cloze particle`.
+- **related** words, via `◊related`, following the same format of (1) reading, (2) translation, (3) *optional* written form. I use these to practice kanji→reading (or translation→reading, in the absence of a written form) of words that are related to the sentence.
+- **Conjugated phrases** via `◊cloze conjugated`, followed by the text of the conjugations, and similarly,
+- **particles** via `◊cloze particle`.
 
 For the latter two, if there is ambiguity about which part of the sentence represents the conjugated phrase or particle, you can provide some context, as in the last line above: "◊cloze particle ゃ[に]ほ" means "the particle is に, specifically the に in the sentence flanked by ゃ and ほ, and not the に in にんじゃ". Curtiz will warn you if these clozed phrases are ambiguous, so don't worry.
 
@@ -119,7 +121,9 @@ If you have MeCab and J.DepP installed, you can leave out the reading, and Curti
 
 #### ◊sent :: Snow began falling. :: 雪が降り始めました。
 
-Note how there is *no* reading before the first `::`. After you either `quiz` *or* `learn`, you'll see that
+Note how there is *no* reading before the first `::`, and *no* sub-bullets.
+
+After you the first `quiz` or `learn` **or** after `node curtiz.js parse README.md`, you'll see that
 1. the reading 「ゆきがふりはじめました」has been automatically added to the header, and
 2. the following bullets added under the header:
   - ◊related?? ゆき :: ? :: 雪
