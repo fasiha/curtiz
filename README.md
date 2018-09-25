@@ -47,11 +47,11 @@ $ ./configure --with-mecab-dict=UNI
 $ make model
 $ make install
 ```
-(`curl` just downloads the file; make sure you change the directory name; your system may need `sudo make install` on the last line.) This will download corpora from the internet and build the J.DepP source code. **N.B. This installation needs Python 2.** (I use the wonderful [pyenv](https://github.com/pyenv/pyenv#readme) to track my Pythons so it was trivial to set up the J.DepP directory to use Python 2.)
+(`curl` just downloads the file; make sure you change the directory name when you `cd`; your system may need `sudo make install` on the last line. Note this requires Python 2: I use and love [pyenv](https://github.com/pyenv/pyenv#readme) and it let me specify Python 2 for this directory.)
 
-I am also preparing a Docker container with these dependencies, as well as Emscripten versions of these C++ applications so they can be `npm install`ed.
+This will download corpora from the internet and build the J.DepP source code.
 
-And as mentioned, feel free to [write](https://fasiha.github.io/#contact) to me or [open an issue](https://github.com/fasiha/curtiz/issues) for help with any of the above.
+I am also preparing a Docker container with these dependencies, as well as Emscripten versions of these C++ applications so they can be `npm install`ed. As mentioned, feel free to [write](https://fasiha.github.io/#contact) to me or [open an issue](https://github.com/fasiha/curtiz/issues) for help with any of the above.
 
 ## Usage
 This [`README.md`](README.md) that you're currently reading is a Curtiz-friendly Markdown file that you can use immediately. Try running the following:
@@ -109,11 +109,26 @@ When you ask Curtiz to quiz you, via `node curtiz.js quiz README.md`, it will as
 
 As far as command-line tools go, Curtiz won't win any awards, but I have sought to make it ergonomic to fill in blanks, out of order if you prefer, etc.
 
-If you have MeCab and J.DepP installed, you can leave off the reading, i.e., the above sentence's header block could be "◊sent :: Yamada was praised by the ninja. :: 山田はにんじゃにほめられた。" and after either `learn`ing or `quiz`ing, Curtiz will update the reading section before the first `::` separator. You could have left off the `◊cloze` lines and MeCab and J.DepP will also automatically populated them by analyzing the sentence for conjugated phrases and particles—I'd recommend checking these because sometimes these automatic tools do make mistakes. Don't worry, it won't overwrite any blocks that you've already learned.
+## Automatic reading and cloze generation with Japanese parsers
+
+If you have MeCab and J.DepP installed, you can leave out the reading, and Curtiz will fill it in for you. So for example, if you had the following:
+
+#### ◊sent ゆきがふりはじめました :: Snow began falling. :: 雪が降り始めました。
+
+After you either `quiz` or `learn`, you'll see that
+1. the reading has been automatically added to the header, and
+2. the following bullets added under the header:
+  - ◊related?? ゆき :: ? :: 雪
+  - ◊related?? ふる :: ? :: 降る
+  - ◊related?? はじめる :: ? :: 始める
+  - ◊cloze conjugation 降り始めました
+  - ◊cloze particle が
+
+I recommend checking these because these automatic tools can make mistakes. Don't worry, it won't overwrite any clozes that you've already learned.
 
 And if Curtiz does eat your homework, it always saves a backup, with the `.bak` extension.
 
-> Extra bonus feature: another way to ask Curtiz to parse the sentence is to add a `- ◊pleaseParse` bullet with the rest of the bullets.
+> Extra bonus feature: another way to ask Curtiz to parse the sentence (besides leaving out the reading) is to add a `- ◊pleaseParse` bullet under the heading.
 
 ## Name
 The name comes from Arakawa Hiromi's legendary manga, *Fullmetal Alchemist*, where Curtis Izumi is the powerful alchemist who took in the Elric brothers and taught them alchemy. The artist has said that this is her favorite scene:
