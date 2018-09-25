@@ -115,7 +115,7 @@ if (require.main === module) {
           let n = finalPrediction.unlearned;
           console.log(`Learn the following ${n} new sub-fact${n > 1 ? 's' : ''}:`);
           let print =
-              finalQuizzable.bullets.filter(b => b instanceof Quiz && !b.ebisu).map(q => q.toString()).join('XXXXXX');
+              finalQuizzable.bullets.filter(b => b instanceof Quiz && !b.ebisu).map(q => q.toString()).join('\n');
           console.log(print)
           let entry = await cliPrompt(`Enter to indicate you have learned ${n > 1 ? 'these' : 'this'},` +
                                       ` or a positive number to scale the initial half-life. > `);
