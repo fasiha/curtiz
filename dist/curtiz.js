@@ -22,8 +22,7 @@ For Ebisu-related scheduling debug information:
 const cliFillInTheBlanks_1 = require("./cliFillInTheBlanks");
 const cliPrompt_1 = require("./cliPrompt");
 const markdown_1 = require("./markdown");
-const ensureFinalNewline = (s) => s.endsWith('\n') ? s : s + '\n';
-const contentToString = (content) => ensureFinalNewline(content.map(o => (o instanceof Array ? o : o.block).join('\n')).join('\n'));
+const utils_1 = require("./utils");
 function cloze(clozes) {
     return __awaiter(this, void 0, void 0, function* () {
         let numberOfParticles = 0;
@@ -74,36 +73,62 @@ if (require.main === module) {
             let content = markdown_1.textToBlocks(text);
             // Parses Markdown and if necessary invokes MeCab/Jdepp
             yield markdown_1.verifyAll(content);
-            let learned = content.filter(o => o instanceof markdown_1.Quizzable && o.ebisu);
+            let learned = content.filter(o => o instanceof markdown_1.Quizzable && o.learned());
             let mode = process.argv[2];
             if (mode === 'quiz') {
                 let now = new Date();
-                let toQuiz;
-                let learnedProbs = learned.map(o => o.predict(now));
-                let quizProb = learned.reduce(([q, p], curr, idx) => (learnedProbs[idx] < p ? [curr, learnedProbs[idx]] : [q, p]), [undefined, Infinity]);
-                toQuiz = quizProb[0];
-                if (learned.length > 5) {
-                    // If enough items have been learned, let's add some randomization. We'll still ask a quiz with low
-                    // recall probability, but shuffling low-probability quizzes is nice to avoid quizzing in the same
-                    // order as learned.
-                    let minProb = quizProb[1];
-                    let maxProb = [.001, .01, .1, .2, .3, .4, .5].find(x => x > minProb);
-                    if (maxProb !== undefined) {
-                        let toQuizs = learned.filter((_, qidx) => learnedProbs[qidx] <= (maxProb || 1));
-                        if (toQuizs.length > 0) {
-                            toQuiz = toQuizs[Math.floor(Math.random() * toQuizs.length)];
+                let finalQuiz;
+                let finalQuizzable;
+                let finalPrediction;
+                let predictions = learned.map(q => q.predict());
+                if (predictions.some(x => !x)) {
+                    throw new Error('typescript pacification: predictions on learned ok');
+                }
+                let minIdx = utils_1.argmin(predictions, p => p.prob);
+                if (minIdx >= 0) {
+                    [finalQuiz, finalQuizzable, finalPrediction] = [predictions[minIdx].quiz, learned[minIdx], predictions[minIdx]];
+                    if (learned.length > 5) {
+                        // If enough items have been learned, let's add some randomization. We'll still ask a quiz with low
+                        // recall probability, but shuffling low-probability quizzes is nice to avoid quizzing in the same
+                        // order as learned.
+                        let minProb = predictions[minIdx].prob;
+                        let maxProb = [.001, .01, .1, .2, .3, .4, .5].find(x => x > minProb);
+                        if (maxProb !== undefined) {
+                            let max = maxProb;
+                            let groupPredictionsQuizzables = predictions.map((p, i) => [p, learned[i]]).filter(([p, q]) => p.prob <= max);
+                            if (groupPredictionsQuizzables.length > 0) {
+                                let randIdx = Math.floor(Math.random() * groupPredictionsQuizzables.length);
+                                [finalQuiz, finalQuizzable, finalPrediction] = [
+                                    groupPredictionsQuizzables[randIdx][0].quiz,
+                                    groupPredictionsQuizzables[randIdx][1],
+                                    groupPredictionsQuizzables[randIdx][0],
+                                ];
+                            }
                         }
                     }
                 }
-                if (!toQuiz) {
+                if (!(finalQuiz && finalQuizzable)) {
                     console.log('Nothing to review. Learn something and try again.');
                     process.exit(0);
+                    return;
                 }
-                if (toQuiz instanceof markdown_1.SentenceBlock) {
-                    let { quizName, contexts, clozes } = toQuiz.preQuiz(now);
+                if (finalQuizzable instanceof markdown_1.SentenceBlock) {
+                    let { contexts, clozes } = finalQuiz.preQuiz();
                     let responses = yield cloze(contexts);
-                    let correct = toQuiz.postQuiz(quizName, clozes, responses, now);
-                    let summary = toQuiz.block[0];
+                    let scale = 1;
+                    if (finalPrediction && finalPrediction.unlearned > 0) {
+                        let n = finalPrediction.unlearned;
+                        console.log(`Learn the following ${n} new sub-fact${n > 1 ? 's' : ''}:`);
+                        let print = finalQuizzable.bullets.filter(b => b instanceof markdown_1.Quiz && !b.ebisu).map(q => q.toString()).join('XXXXXX');
+                        console.log(print);
+                        let entry = yield cliPrompt_1.cliPrompt(`Enter to indicate you have learned ${n > 1 ? 'these' : 'this'},` +
+                            ` or a positive number to scale the initial half-life. > `);
+                        if (entry && entry.length > 0 && (scale = parseFloat(entry))) {
+                            console.log(`${n} sub-fact${n > 1 ? 's' : ''} initial half-life will be ${scale}× default.`);
+                        }
+                    }
+                    let correct = finalQuizzable.postQuiz(finalQuiz, clozes, responses, now, scale);
+                    let summary = finalQuizzable.header;
                     summary = summary.slice(summary.indexOf(markdown_1.SentenceBlock.init) + markdown_1.SentenceBlock.init.length);
                     if (correct) {
                         console.log('💥 🔥 🎆 🎇 👏 🙌 👍 👌! ' + summary);
@@ -115,13 +140,13 @@ if (require.main === module) {
                 else {
                     throw new Error('Unhandled quiz type');
                 }
-                writeFile(filename, contentToString(content));
+                writeFile(filename, markdown_1.contentToString(content));
             }
             else if (mode === 'learn') {
                 //
                 // Learn
                 //
-                let toLearn = content.find(o => o instanceof markdown_1.SentenceBlock && !o.ebisu);
+                let toLearn = content.find(o => o instanceof markdown_1.Quizzable && !o.learned());
                 if (!toLearn) {
                     console.log('Nothing to learn!');
                     process.exit(0);
@@ -143,7 +168,7 @@ if (require.main === module) {
                 }
                 const now = new Date();
                 toLearn.learn(now, scale);
-                writeFile(filename, contentToString(content));
+                writeFile(filename, markdown_1.contentToString(content));
             }
             else if (mode === 'ebisu') {
                 let now = new Date();
@@ -158,18 +183,12 @@ if (require.main === module) {
                     return (res - e.lastDate.valueOf()) / 36e5;
                 }
                 // Print
-                let sorted = learned.slice();
-                sorted.sort((a, b) => a.predict(now) - b.predict(now));
+                let sorted = learned.map(q => [q.predict(), q.header]).filter(p => !!p);
+                sorted.sort((a, b) => a[0].prob - b[0].prob);
                 console.log(sorted
-                    .map(o => {
-                    let status = {};
-                    let precall = o.predict(now, status);
-                    if (!status.ebisu) {
-                        throw new Error('TypeScript pacification: predict-!>Ebisu obj');
-                    }
-                    return 'Precall=' + (100 * precall).toFixed(1) +
-                        '%  hl=' + halflife(status.ebisu).toExponential(2) + 'hours  ' + o.block[0];
-                })
+                    .map(([{ prob: precall, quiz }, title]) => 'Precall=' + (100 * precall).toFixed(1) +
+                    '%  hl=' + halflife(quiz.ebisu).toExponential(2) +
+                    'hours  ' + title)
                     .join('\n'));
             }
             else {

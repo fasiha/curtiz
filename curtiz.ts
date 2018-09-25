@@ -70,13 +70,14 @@ if (require.main === module) {
     let mode = process.argv[2];
     if (mode === 'quiz') {
       let now: Date = new Date();
-      let toQuiz: Quiz|undefined;
-      let toQuizzable: Quizzable|undefined;
+      let finalQuiz: Quiz|undefined;
+      let finalQuizzable: Quizzable|undefined;
+      let finalPrediction: Predicted|undefined;
       let predictions = learned.map(q => q.predict()) as Predicted[];
       if (predictions.some(x => !x)) { throw new Error('typescript pacification: predictions on learned ok'); }
       let minIdx = argmin(predictions, p => p.prob);
       if (minIdx >= 0) {
-        [toQuiz, toQuizzable] = [predictions[minIdx].quiz, learned[minIdx]];
+        [finalQuiz, finalQuizzable, finalPrediction] = [predictions[minIdx].quiz, learned[minIdx], predictions[minIdx]];
         if (learned.length > 5) {
           // If enough items have been learned, let's add some randomization. We'll still ask a quiz with low
           // recall probability, but shuffling low-probability quizzes is nice to avoid quizzing in the same
@@ -89,24 +90,42 @@ if (require.main === module) {
                 predictions.map((p, i) => [p, learned[i]] as [Predicted, Quizzable]).filter(([p, q]) => p.prob <= max);
             if (groupPredictionsQuizzables.length > 0) {
               let randIdx = Math.floor(Math.random() * groupPredictionsQuizzables.length);
-              [toQuiz, toQuizzable] =
-                  [groupPredictionsQuizzables[randIdx][0].quiz, groupPredictionsQuizzables[randIdx][1]];
+              [finalQuiz, finalQuizzable, finalPrediction] = [
+                groupPredictionsQuizzables[randIdx][0].quiz,
+                groupPredictionsQuizzables[randIdx][1],
+                groupPredictionsQuizzables[randIdx][0],
+              ];
             }
           }
         }
       }
 
-      if (!(toQuiz && toQuizzable)) {
+      if (!(finalQuiz && finalQuizzable)) {
         console.log('Nothing to review. Learn something and try again.')
         process.exit(0);
         return;
       }
 
-      if (toQuizzable instanceof SentenceBlock) {
-        let {contexts, clozes} = toQuiz.preQuiz();
+      if (finalQuizzable instanceof SentenceBlock) {
+        let {contexts, clozes} = finalQuiz.preQuiz();
         let responses = await cloze(contexts);
-        let correct = toQuizzable.postQuiz(toQuiz, clozes, responses, now);
-        let summary = toQuizzable.header;
+
+        let scale: number = 1;
+        if (finalPrediction && finalPrediction.unlearned > 0) {
+          let n = finalPrediction.unlearned;
+          console.log(`Learn the following ${n} new sub-fact${n > 1 ? 's' : ''}:`);
+          let print =
+              finalQuizzable.bullets.filter(b => b instanceof Quiz && !b.ebisu).map(q => q.toString()).join('XXXXXX');
+          console.log(print)
+          let entry = await cliPrompt(`Enter to indicate you have learned ${n > 1 ? 'these' : 'this'},` +
+                                      ` or a positive number to scale the initial half-life. > `);
+          if (entry && entry.length > 0 && (scale = parseFloat(entry))) {
+            console.log(`${n} sub-fact${n > 1 ? 's' : ''} initial half-life will be ${scale}× default.`);
+          }
+        }
+
+        let correct = finalQuizzable.postQuiz(finalQuiz, clozes, responses, now, scale);
+        let summary = finalQuizzable.header;
         summary = summary.slice(summary.indexOf(SentenceBlock.init) + SentenceBlock.init.length);
         if (correct) {
           console.log('💥 🔥 🎆 🎇 👏 🙌 👍 👌! ' + summary);

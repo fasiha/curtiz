@@ -20,7 +20,7 @@ export type Content = Quizzable|string[];
 export type Predicted = {
   prob: number,
   quiz: Quiz,
-  unlearned: any
+  unlearned: number
 };
 
 /**
@@ -149,6 +149,7 @@ export abstract class Quiz {
   abstract preQuiz(): {contexts: (string|null)[], clozes: string[]};
   abstract toString(): string|null;
 };
+
 export class QuizClozedConjugation extends Quiz {
   static init = '- ◊cloze conjugation ';
   conjugation: string;
@@ -162,7 +163,7 @@ export class QuizClozedConjugation extends Quiz {
     } else if (line) {
       let idx = line.indexOf(QuizClozedConjugation.init);
       if (idx < 0) { throw new Error('cannot find QuizClozedConjugation init'); }
-      this.conjugation = line.slice(idx).trim();
+      this.conjugation = line.slice(idx + QuizClozedConjugation.init.length).trim();
     } else {
       throw new Error('need conjugation or line');
     }
@@ -190,7 +191,7 @@ export class QuizClozedParticle extends Quiz {
     } else if (line) {
       let idx = line.indexOf(QuizClozedParticle.init);
       if (idx < 0) { throw new Error('cannot find QuizClozedParticle init'); }
-      this.particle = line.slice(idx).trim();
+      this.particle = line.slice(idx + QuizClozedParticle.init.length).trim();
     } else {
       throw new Error('need particle or line')
     }
@@ -215,7 +216,7 @@ export class QuizRelated extends Quiz {
     if (ebisu) { this.ebisu = ebisu; }
     let idx = line.indexOf(QuizRelated.init);
     if (idx < 0) { throw new Error('cannot find QuizRelated init'); }
-    let split = line.slice(idx).split(this.fieldSep);
+    let split = line.slice(idx + QuizRelated.init.length).split(this.fieldSep);
     if (!(split.length === 2 || split.length === 3)) { throw new Error('2- or 3-item related not found'); }
     [this.reading, this.translation, this.written] = split.map(s => s.trim());
   }

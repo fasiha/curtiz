@@ -7,7 +7,7 @@
     "curtiz": "./dist/curtiz.js"
   },
   "scripts": {
-    "test": "tape test/*",
+    "test": "tape test/*.js",
     "build": "tsc -p .",
     "dist": "npm run build && cp *.js dist/"
   },

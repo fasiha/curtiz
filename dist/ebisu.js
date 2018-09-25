@@ -40,7 +40,8 @@ class Ebisu {
     }
     passiveUpdate(d) { this.lastDate = d || new Date(); }
     modelToString() { return this.model.map(n => n.toExponential(3)).join(Ebisu.fieldSeparator); }
-    toString() { return [this.lastDate.toISOString(), this.modelToString()]; }
+    toStrings() { return [this.lastDate.toISOString(), this.modelToString()]; }
+    toString() { return `${this.lastDate.toISOString()}${Ebisu.fieldSeparator} ${this.modelToString()}`; }
     static fromString(s) {
         let chunks = s.split(Ebisu.fieldSeparator);
         if (chunks.length !== 4) {
