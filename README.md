@@ -71,6 +71,8 @@ That is, Curtiz will look through this Markdown file for a header block—a line
 
 > ◊ is a lozenge. On macOS US English keyboard, it is `option-shift-v`; on other operating systems and phones, I set up an auto-converter that translates something like "loz" to ◊. I use this symbol with much admiration for [Pollen](https://docs.racket-lang.org/pollen/pollen-command-syntax.html#%28part._the-lozenge%29).
 
+After you finish learning a sentence, Curtiz lets you specify a multiplier to scale its initial guess about this fact's half-life in your memory, which is 15 minutes. If you learn a hard sentence that you're not confident about, feel free to enter "0.5" or something less than 1 (the default). If you're confident you will remember the sentence, feel fre to enter a number bigger than 1. Entering "10" for example will set the sentence's memory half-life to 2.5 hours: fifteen minutes times ten. This is a fancy feature of [Ebisu](https://fasiha.github.io/ebisu/)!
+
 If you actually ran the command above, you might notice that Curtiz has modified your copy of this README.md. It has added a Markdown bullet under the header above, something like `- ◊Ebisu1 `, followed by a date and several numbers. [Ebisu](https://fasiha.github.io/ebisu/) is the statistical scheduler that Curtiz uses to know what flashcards to review and when; the numbers are Ebisu "models" that track your memory of this flashcard (the reading, translation, and kanji are all separate "flashcards").
 
 > If you don't yet know hiragana, head on over to [Naurvir's Memrise Hiragana course](https://www.memrise.com/course/43833/hiragana-2/) and you'll have it in a couple of days. Seriously, don't delay: Memrise's emphasis on visual mnemonics make it child's play to memorize the hiragana and [katakana](https://www.memrise.com/course/43875/katakana-2/). (Though, it's better to learn the katakana *from* the hiragana, instead of learning both from English or your native language. Try to find a course that teaches katakana from the hiragana.)
@@ -93,7 +95,7 @@ Ebisu can also help you learn and practice longer sentences. Here's an example t
 If a Curtiz header is followed immediately by a list of lozenge keywords, as above, Curtiz will understand that you want to tell it more about this sentence. Here are the three kinds of extra information you can give it:
 - related words, via `◊related`, following the same format of (1) reading, (2) translation, (3) *optional* written form. I use these to practice kanji→reading (or translation→reading, in the absence of a written form) of words that are related to the sentence.
 - Conjugated phrases via `◊cloze conjugated`, followed by the text of the conjugations, and similarly,
-- particles via `◊cloze partice`.
+- particles via `◊cloze particle`.
 
 For the latter two, if there is ambiguity about which part of the sentence represents the conjugated phrase or particle, you can provide some context, as in the last line above: "◊cloze particle ゃ[に]ほ" means "the particle is に, specifically the に in the sentence flanked by ゃ and ほ, and not the に in にんじゃ". Curtiz will warn you if these clozed phrases are ambiguous, so don't worry.
 
@@ -109,14 +111,16 @@ When you ask Curtiz to quiz you, via `node curtiz.js quiz README.md`, it will as
 
 As far as command-line tools go, Curtiz won't win any awards, but I have sought to make it ergonomic to fill in blanks, out of order if you prefer, etc.
 
+Also note that you can learn a sentence, and then add `◊related` or `◊cloze` sub-facts to it. The next time the sentence flashcard is up for review, Curtiz will ask you to learn these new sub-facts.
+
 ## Automatic reading and cloze generation with Japanese parsers
 
 If you have MeCab and J.DepP installed, you can leave out the reading, and Curtiz will fill it in for you. So for example, if you had the following:
 
-#### ◊sent ゆきがふりはじめました :: Snow began falling. :: 雪が降り始めました。
+#### ◊sent :: Snow began falling. :: 雪が降り始めました。
 
-After you either `quiz` or `learn`, you'll see that
-1. the reading has been automatically added to the header, and
+Note how there is *no* reading before the first `::`. After you either `quiz` *or* `learn`, you'll see that
+1. the reading 「ゆきがふりはじめました」has been automatically added to the header, and
 2. the following bullets added under the header:
   - ◊related?? ゆき :: ? :: 雪
   - ◊related?? ふる :: ? :: 降る
@@ -124,11 +128,23 @@ After you either `quiz` or `learn`, you'll see that
   - ◊cloze conjugation 降り始めました
   - ◊cloze particle が
 
+Curtiz has analyzed the sentence and found vocabulary using kanji as `◊related??` tags—the `??` prevents this from being parsed as a true `◊related` flashcard! If you'd like Curtiz to quiz you on these related cards, going from kanji to reading, remove the `??` to make these `◊related` flashcards.
+
+Curtiz has also added particles and verb/adjective conjugated phrases as `◊cloze` flashcards, which will be quizzed via fill-in-the-blanks.
+
 I recommend checking these because these automatic tools can make mistakes. Don't worry, it won't overwrite any clozes that you've already learned.
 
 And if Curtiz does eat your homework, it always saves a backup, with the `.bak` extension.
 
-> Extra bonus feature: another way to ask Curtiz to parse the sentence (besides leaving out the reading) is to add a `- ◊pleaseParse` bullet under the heading.
+Another way to get Curtiz to parse the sentence (besides leaving out the reading) is to add an extra bullet under the header containing `◊pleaseParse`:
+
+#### ◊sent めをあける :: to open eyes :: 目を開ける
+- ◊pleaseParse
+
+After Curtiz processes this file, the above will have the following bullets under it:
+- ◊related?? め :: ? :: 目
+- ◊related?? あける :: ? :: 開ける
+- ◊cloze particle を
 
 ## Name
 The name comes from Arakawa Hiromi's legendary manga, *Fullmetal Alchemist*, where Curtis Izumi is the powerful alchemist who took in the Elric brothers and taught them alchemy. The artist has said that this is her favorite scene:
