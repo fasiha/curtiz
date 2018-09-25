@@ -10,12 +10,9 @@ const ebisuInit: string = '- ◊Ebisu' + ebisuVersion + ' ';
 const ebisuDateSeparator = ';';
 
 export abstract class Quizzable {
-  abstract predict(now?: Date, ebisu?: any): number;
+  abstract predict(now?: Date): {prob: number, quiz: any};
   abstract learn(now?: Date, scale?: number): void;
-  abstract preQuiz(now?: Date, quizName?: string): {quizName: string, contexts: (string|null)[], clozes: string[]};
-  abstract postQuiz(quizName: string, clozes: string[], results: string[], now?: Date): boolean;
-  abstract block: string[];
-  abstract ebisu?: any;
+  abstract postQuiz(quizCompleted: Quiz, clozes: string[], results: string[], now?: Date, scale?: number): boolean;
 }
 export type Content = Quizzable|string[];
 
@@ -155,6 +152,7 @@ function blockToFirstEbisu(block: string[], status?: {lino?: number}) {
   }
   return null;
 }
+function last<T>(v: T[]): T|undefined { return v[v.length - 1]; }
 
 function updateBlockEbisu(block: string[], startIdx: number, ebisu: Ebisu) {
   let rows = findSubBlockLength(block, startIdx);
@@ -170,210 +168,204 @@ function updateBlockEbisu(block: string[], startIdx: number, ebisu: Ebisu) {
   throw new Error('Ebisu not found in block, cannot update')
 }
 
+export abstract class Quiz {
+  ebisu?: any;
+  abstract toString(): string|null;
+};
+export class QuizClozedConjugation extends Quiz {
+  static init = '- ◊cloze conjugation ';
+  conjugation: string;
+  sentence: SentenceBlock;
+  constructor(sentence: SentenceBlock, conjugation?: string, line?: string, ebisu?: Ebisu) {
+    super();
+    this.sentence = sentence;
+    if (ebisu) { this.ebisu = ebisu; }
+    if (conjugation) {
+      this.conjugation = conjugation;
+    } else if (line) {
+      let idx = line.indexOf(QuizClozedConjugation.init);
+      if (idx < 0) { throw new Error('cannot find QuizClozedConjugation init'); }
+      this.conjugation = line.slice(idx).trim();
+    } else {
+      throw new Error('need conjugation or line');
+    }
+  }
+  preQuiz(): {contexts: (string|null)[], clozes: string[]} {
+    let [contexts, clozes] =
+        extractClozed(this.sentence.sentence + ` (${this.sentence.translation})`, this.conjugation);
+    return {contexts, clozes};
+  }
+  toString(): string|null {
+    return `${QuizClozedConjugation.init}${this.conjugation}` +
+           (this.ebisu ? `\n  ${ebisuInit} _ ${this.ebisu.toString()}` : ``);
+  }
+};
+export class QuizClozedParticle extends Quiz {
+  static init = '- ◊cloze particle ';
+  particle: string;
+  sentence: SentenceBlock;
+  constructor(sentence: SentenceBlock, particle?: string, line?: string, ebisu?: Ebisu) {
+    super();
+    this.sentence = sentence;
+    if (ebisu) { this.ebisu = ebisu; }
+    if (particle) {
+      this.particle = particle;
+    } else if (line) {
+      let idx = line.indexOf(QuizClozedParticle.init);
+      if (idx < 0) { throw new Error('cannot find QuizClozedParticle init'); }
+      this.particle = line.slice(idx).trim();
+    } else {
+      throw new Error('need particle or line')
+    }
+  }
+  preQuiz(): {contexts: (string|null)[], clozes: string[]} {
+    let [contexts, clozes] = extractClozed(this.sentence.sentence + ` (${this.sentence.translation})`, this.particle);
+    return {contexts, clozes};
+  }
+  toString(): string|null {
+    return `${QuizClozedParticle.init}${this.particle}` +
+           (this.ebisu ? `\n  ${ebisuInit} _ ${this.ebisu.toString()}` : ``);
+  }
+};
+export class QuizRelated extends Quiz {
+  static init = '- ◊related ';
+  fieldSep = '::';
+  reading: string;
+  translation: string;
+  written?: string;
+  constructor(line: string, ebisu?: Ebisu) {
+    super();
+    if (ebisu) { this.ebisu = ebisu; }
+    let idx = line.indexOf(QuizRelated.init);
+    if (idx < 0) { throw new Error('cannot find QuizRelated init'); }
+    let split = line.slice(idx).split(this.fieldSep);
+    if (!(split.length === 2 || split.length === 3)) { throw new Error('2- or 3-item related not found'); }
+    [this.reading, this.translation, this.written] = split.map(s => s.trim());
+  }
+  preQuiz(): {contexts: (string|null)[], clozes: string[]} {
+    if (this.written) { return {contexts: [`${this.written}: enter reading: `, null], clozes: [this.reading]}; }
+    return {contexts: [`${this.translation}: enter reading: `, null], clozes: [this.reading]};
+  }
+  toString(): string|null {
+    return `${QuizRelated.init}${
+                   [this.reading, this.translation, this.written].filter(x => !!x).join(' ' + this.fieldSep + ' ')}` +
+           (this.ebisu ? `\n  ${ebisuInit} _ ${this.ebisu.toString()}` : ``);
+  }
+};
+export class QuizReading extends Quiz {
+  static ebisuName: string = 'reading';
+  sentence: SentenceBlock;
+  constructor(sentence: SentenceBlock, ebisu?: Ebisu) {
+    super();
+    this.ebisu = ebisu;
+    this.sentence = sentence;
+  }
+  preQuiz(): {contexts: (string|null)[], clozes: string[]} {
+    return { contexts: [`${this.sentence.sentence}: enter reading: `, null], clozes: [this.sentence.reading] }
+  }
+  toString(): string|null {
+    return this.ebisu ? `${ebisuInit} ${QuizReading.ebisuName} ${this.ebisu.toString()}` : null;
+  }
+};
+type Bullet = string|Quiz;
+
 export class SentenceBlock extends Quizzable {
-  block: string[];
+  header: string;
+  bullets: Bullet[];
+  // block: string[];
   sentence: string;
   translation: string;
   reading: string;
-  clozedConjugations: string[] = [];
-  clozedParticles: string[] = [];
-  relateds: string[] = [];
-  ebisu?: Map<string, Ebisu>;
-  ebisuNameToLino: Map<string, number> = new Map([]);
-  clozeNameToLino: Map<string, number> = new Map([]);
   static init: string = '◊sent';
-  static clozedParticleStart = '- ◊cloze particle ';
-  static clozedConjugationStart = '- ◊cloze conjugation ';
-  static relatedStart = '- ◊related ';
   static fieldSep = '::';
 
   constructor(block: string[]) {
     super();
-    this.block = block;
-    const lozengeIdx = block[0].indexOf(SentenceBlock.init);
-    if (lozengeIdx < 0) { throw new Error('◊ not found'); }
-    const line = block[0].slice(lozengeIdx + SentenceBlock.init.length);
-    const pieces = line.split(SentenceBlock.fieldSep);
-    if (pieces.length !== 3) { throw new Error('Sentence needs (1) reading, (2) translation, and (3) printed.'); }
-    this.sentence = pieces[2].trim();
-    this.translation = pieces[1].trim();
-    this.reading = pieces[0].trim();
-    this.extractAll();
-  }
-  extractAll() {
-    for (const key of this.ebisuNameToLino.keys()) { this.ebisuNameToLino.delete(key); }
-    for (const key of this.clozeNameToLino.keys()) { this.clozeNameToLino.delete(key); }
-    this.extractTopLevelEbisu();
-    this.extractClozesRelatedsAndEbisu();
-  }
-  extractClozesRelatedsAndEbisu() {
-    const regexps = [
-      SentenceBlock.clozedConjugationStart,
-      SentenceBlock.clozedParticleStart,
-      SentenceBlock.relatedStart,
-    ].map(s => new RegExp('^\\s*' + s));
+    if (!block[0].includes(SentenceBlock.init)) { throw new Error('first entry of text block should contain header'); }
+    this.header = block[0];
+    {
+      const lozengeIdx = block[0].indexOf(SentenceBlock.init);
+      if (lozengeIdx < 0) { throw new Error('◊ not found'); }
+      const line = block[0].slice(lozengeIdx + SentenceBlock.init.length);
+      const pieces = line.split(SentenceBlock.fieldSep);
+      if (pieces.length !== 3) { throw new Error('Sentence needs (1) reading, (2) translation, and (3) printed.'); }
+      this.sentence = pieces[2].trim();
+      this.translation = pieces[1].trim();
+      this.reading = pieces[0].trim();
+    }
 
-    this.clozedConjugations = [];
-    this.clozedParticles = [];
-    this.relateds = [];
+    this.bullets = [];
+    if (block.length > 1) {
+      const getIndent = (s: string) => (s.match(/^\s*/) || [''])[0].length;
+      let initialIndent = getIndent(block[1]);
+      let prev: Bullet|undefined;
+      for (let [lidx, line] of enumerate(block)) {
+        if (lidx === 0) { continue; }
+        let thisIndent = getIndent(line);
+        let trimmedLine = line.trimLeft();
 
-    const outputs = [
-      this.clozedConjugations,
-      this.clozedParticles,
-      this.relateds,
-    ];
-
-    const update =
-        (lidx: number, line: string, re: RegExp, dest: string[]) => {
-          let match = line.match(re);
-          if (match) {
-            let withoutInit = line.slice(match[0].length).trim();
-            if (withoutInit.length === 0) { throw new Error('cloze conjugation empty?') }
-            dest.push(withoutInit);
-            let title = match[0].trimLeft() + withoutInit;
-            this.clozeNameToLino.set(title, lidx);
-
-            let numBullets = findSubBlockLength(this.block, lidx);
-            let status = {lino: -1};
-            let e = blockToFirstEbisu(this.block.slice(lidx, lidx + numBullets), status);
-            if (e) {
-              if (!this.ebisu) { this.ebisu = new Map([]); }
-              this.ebisu.set(title, e.ebisu);
-              if (status.lino < 0) { throw new Error('Ebisu made but lino not found?') }
-              this.ebisuNameToLino.set(title, lidx + status.lino);
+        if (trimmedLine.startsWith(ebisuInit)) {
+          let extracted = blockToFirstEbisu([line])
+          if (extracted) {
+            let {name, ebisu} = extracted;
+            if (name === QuizReading.ebisuName && thisIndent === initialIndent) {
+              this.bullets.push(new QuizReading(this, ebisu));
+            } else if ((prev = last(this.bullets)) instanceof Quiz && !prev.ebisu) {
+              prev.ebisu = ebisu;
+            } else {
+              this.bullets.push(line);
             }
-            return true;
           }
-          return false;
+        } else if (trimmedLine.startsWith(QuizRelated.init) && initialIndent === thisIndent) {
+          this.bullets.push(new QuizRelated(line));
+        } else if (trimmedLine.startsWith(QuizClozedParticle.init) && initialIndent === thisIndent) {
+          this.bullets.push(new QuizClozedParticle(this, undefined, line));
+        } else if (trimmedLine.startsWith(QuizClozedConjugation.init) && initialIndent === thisIndent) {
+          this.bullets.push(new QuizClozedConjugation(this, undefined, line));
+        } else {
+          this.bullets.push(line);
         }
-
-    for (const [lidx, line] of enumerate(this.block)) {
-      for (const [re, dest] of zip(regexps, outputs)) {
-        if (update(lidx, line, re, dest)) { break; };
       }
     }
+    // Required quizzes go here
+    if (!this.bullets.some(q => q instanceof QuizReading)) { this.bullets.push(new QuizReading(this)); }
   }
-  extractTopLevelEbisu() {
-    const acceptableNames = [
-      // 'kanji',
-      'reading',
-    ];
-    for (let targetName of acceptableNames) {
-      this.ebisuNameToLino.delete(targetName);
-      this.clozeNameToLino.delete(targetName); // and don't add!
-      let hit = this.block.findIndex(s => s.indexOf(ebisuInit + targetName + ' ') >= 0);
-      if (hit >= 0) {
-        let e = blockToFirstEbisu([this.block[hit]]);
-        if (!e) { throw new Error('Expected to find Ebisu block'); }
-        if (!this.ebisu) { this.ebisu = new Map([]); }
-        if (targetName !== e.name) { throw new Error('Unexpected Ebisu name mismatch'); }
-        this.ebisu.set(targetName, e.ebisu);
-        this.ebisuNameToLino.set(targetName, hit);
-      }
-    }
-  }
-  predict(now?: Date, ebisu?: {ebisu?: Ebisu}): number {
-    if (!this.ebisu) { return Infinity; }
-    if (!ebisu) { return Math.min(...Array.from(this.ebisu.values(), e => e.predict(now))); }
-    // If predict asked for the lowest-probability Ebisu object:
-    let status: {min?: Ebisu, minmapped?: number} = {};
-    argmin(Array.from(this.ebisu.values()), e => e.predict(now), status);
-    ebisu.ebisu = status.min;
-    return typeof status.minmapped === 'undefined' ? Infinity : status.minmapped;
+  numUnlearned() { return this.bullets.filter(b => b instanceof Quiz && !b.ebisu).length; }
+  learned() { return this.bullets.some(b => b instanceof Quiz && b.ebisu); }
+  predict(now?: Date): {prob: number, quiz: Quiz|undefined, unlearned: number} {
+    let ret: {min?: Quiz, argmin?: number, minmapped?: number} = {};
+    argmin(this.bullets.filter(b => b instanceof Quiz && b.ebisu), b => (b as Quiz).ebisu.predict(now), ret);
+    return {prob: ret.minmapped || Infinity, quiz: ret.min, unlearned: this.numUnlearned()};
   }
   learn(now?: Date, scale: number = 1) {
     now = now || new Date();
-    this.ebisu = new Map([]);
     const make = () => Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, now);
-
-    const looper = (v: string[], init: string, map: Map<string, Ebisu>) => {
-      for (let p of v) {
-        let name = init + p;
-        let ebisu = make();
-        map.set(name, ebisu);
-        let headerIdx = this.clozeNameToLino.get(name);
-        if (typeof headerIdx === 'number') {
-          let dash = this.block[headerIdx].indexOf('-');
-          if (dash < 0) { throw new Error('Failed to find dash of bullet'); }
-          let spaces = ' '.repeat(dash + 2);
-          let eStrings = ebisu.toString();
-          this.block.splice(headerIdx + 1, 0,
-                            spaces + ebisuInit + '_' +
-                                ' ' + eStrings[0] + ebisuDateSeparator + ' ' + eStrings[1]);
-          for (let [k, v] of this.clozeNameToLino) {
-            if (v > headerIdx) { this.clozeNameToLino.set(k, v + 1); }
-          }
-        } else {
-          throw new Error('Quiz name not found in clozeNameToLino:' + name);
-        }
-      }
-    };
-    looper(this.clozedParticles, SentenceBlock.clozedParticleStart, this.ebisu);
-    looper(this.clozedConjugations, SentenceBlock.clozedConjugationStart, this.ebisu);
-    looper(this.relateds, SentenceBlock.relatedStart, this.ebisu);
-
-    // kanji to be decided
-    for (let name of 'reading'.split(',')) {
-      let ebisu = make();
-      this.ebisu.set(name, ebisu);
-      let eStrings = ebisu.toString();
-      this.block.push(ebisuInit + name + ' ' + eStrings[0] + ebisuDateSeparator + ' ' + eStrings[1])
+    for (let b of this.bullets) {
+      if (b instanceof Quiz && !b.ebisu) { b.ebisu = make(); }
     }
-
-    this.extractAll();
   }
-  preQuiz(now?: Date, quizName?: string): {quizName: string, contexts: (string|null)[], clozes: string[]} {
-    if (!this.ebisu) { throw new Error('Block has not yet been learned: no Ebisu map'); }
-    if (!quizName) {
-      let findQuiz: {min?: [string, Ebisu]|undefined} = {};
-      let quizIdx = argmin(this.ebisu.entries(), ([, v]) => v.predict(now), findQuiz)
-      if (quizIdx >= 0 && findQuiz.min) { quizName = findQuiz.min[0]; }
-      else {
-        throw new Error('Cannot find Ebisu model for quiz');
-      }
-    } else if (!this.ebisu.has(quizName)) {
-      throw new Error('quiz name not found');
-    }
-
-    let hit: number;
-    if ((hit = quizName.indexOf(SentenceBlock.clozedConjugationStart)) >= 0) {
-      let cloze = quizName.slice(hit + SentenceBlock.clozedConjugationStart.length).trim();
-      let [contexts, clozes] = extractClozed(this.sentence + ` (${this.translation})`, cloze);
-      return {quizName, contexts, clozes};
-    } else if ((hit = quizName.indexOf(SentenceBlock.clozedParticleStart)) >= 0) {
-      let cloze = quizName.slice(hit + SentenceBlock.clozedParticleStart.length).trim();
-      let [contexts, clozes] = extractClozed(this.sentence + ` (${this.translation})`, cloze);
-      return {quizName, contexts, clozes};
-    } else if ((hit = quizName.indexOf(SentenceBlock.relatedStart)) >= 0) {
-      let related = quizName.slice(hit + SentenceBlock.relatedStart.length);
-      let split = related.split(SentenceBlock.fieldSep);
-      if (!(split.length === 2 || split.length === 3)) { throw new Error('2- or 3-item related not found'); }
-      let [reading, translation, kanji] = split.map(s => s.trim());
-      if (kanji) { return {quizName, contexts: [`${kanji}: enter reading: `, null], clozes: [reading]}; }
-      return {quizName, contexts: [`${translation}: enter reading: `, null], clozes: [reading]};
-    } else if (quizName === 'reading') {
-      return {quizName, contexts: [`${this.sentence}: enter reading: `, null], clozes: [this.reading]};
-    }
-    throw new Error('unknown quiz name');
-  }
-  postQuiz(quizName: string, clozes: string[], results: string[], now?: Date): boolean {
-    if (!this.ebisu) { throw new Error('Block has not yet been learned: no Ebisu map'); }
+  postQuiz(quizCompleted: Quiz, clozes: string[], results: string[], now?: Date, scale: number = 1): boolean {
     const correct = clozes.every((cloze, cidx) => (cloze === results[cidx]) || (cloze === kata2hira(results[cidx])));
-    for (let [name, ebisu] of this.ebisu) {
-      if (name === quizName) {
-        ebisu.update(correct, now);
+    if (!quizCompleted.ebisu) { throw new Error('refusing to update quiz that was not already learned'); }
+    for (let quiz of this.bullets) {
+      if (quiz instanceof Quiz) {
+        if (quiz === quizCompleted) {
+          quiz.ebisu.update(correct, now);
+        } else {
+          if (quiz.ebisu) {
+            quiz.ebisu.passiveUpdate(now);
+          } else {
+            quiz.ebisu = Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, now);
+          }
+        }
       } else {
-        ebisu.passiveUpdate(now);
       }
-      const idx = this.ebisuNameToLino.get(name);
-      if (typeof idx !== 'number') { throw new Error('TypeScript pacification: name->index failed') }
-      updateBlockEbisu(this.block, idx, ebisu);
     }
     return correct;
   }
   async verify() {
     const pleaseParseRegexp = /^\s*- ◊pleaseParse/;
-    if (this.reading === '' || this.block.some(s => pleaseParseRegexp.test(s))) {
+    if (this.reading === '' || this.bullets.some(s => typeof s === 'string' && pleaseParseRegexp.test(s))) {
       let {bunsetsus} = await parse(this.sentence);
       const parsedReading =
           flatten(bunsetsus)
@@ -381,23 +373,19 @@ export class SentenceBlock extends Quizzable {
               .map(m => hasKanji(m.literal) ? kata2hira(m.literal === m.lemma ? m.lemmaReading : m.pronunciation)
                                             : m.literal)
               .join('');
-      if (this.reading !== parsedReading) {
-        if (this.reading.length === 0) {
-          this.reading = parsedReading;
-          let oldHeader = this.block[0];
-          let hit = oldHeader.indexOf(SentenceBlock.init);
-          if (hit < 0) { throw new Error('Init string not found in block header?'); }
-          let hit2 = oldHeader.indexOf(SentenceBlock.fieldSep, hit + SentenceBlock.init.length);
-          if (hit2 < 0) { throw new Error('Separator not found in block header?'); }
-          // reading should be between `hit + SentenceBlock.init.length+1` and `hit2`.
-          let newHeader =
-              oldHeader.slice(0, hit + SentenceBlock.init.length + 1) + parsedReading + ' ' + oldHeader.slice(hit2);
-          this.block[0] = newHeader;
-        }
+      if (this.reading.length === 0) {
+        this.reading = parsedReading;
+        let oldHeader = this.header;
+        let hit = oldHeader.indexOf(SentenceBlock.init);
+        if (hit < 0) { throw new Error('Init string not found in block header?'); }
+        let hit2 = oldHeader.indexOf(SentenceBlock.fieldSep, hit + SentenceBlock.init.length);
+        if (hit2 < 0) { throw new Error('Separator not found in block header?'); }
+        // reading should be between `hit + SentenceBlock.init.length+1` and `hit2`.
+        this.header =
+            oldHeader.slice(0, hit + SentenceBlock.init.length + 1) + parsedReading + ' ' + oldHeader.slice(hit2);
       }
       this.identifyQuizItems(bunsetsus);
-      this.block = this.block.filter(s => !pleaseParseRegexp.test(s));
-      this.extractAll();
+      this.bullets = this.bullets.filter(s => typeof s === 'string' ? !pleaseParseRegexp.test(s) : true);
     }
   }
   identifyQuizItems(bunsetsus: Morpheme[][]) {
@@ -408,13 +396,13 @@ export class SentenceBlock extends Quizzable {
     {
       const morphemes = flatten(bunsetsus);
       if (morphemes.length > 1) {
-        let relatedMaybeInit = SentenceBlock.relatedStart.trimRight() + '?? ';
+        let relatedMaybeInit = QuizRelated.init.trimRight() + '?? ';
         // purge existing ◊related?? blocks
-        this.block = this.block.filter(s => !s.includes(relatedMaybeInit));
+        this.bullets = this.bullets.filter(s => typeof s === 'string' ? !s.includes(relatedMaybeInit) : true);
         // add ◊related?? blocks
         for (let morpheme of morphemes) {
           if (hasKanji(morpheme.literal)) {
-            this.block.push(`${relatedMaybeInit}${kata2hira(morpheme.lemmaReading)} :: ? :: ${morpheme.lemma}`)
+            this.bullets.push(`${relatedMaybeInit}${kata2hira(morpheme.lemmaReading)} :: ? :: ${morpheme.lemma}`)
           }
         }
       }
@@ -442,35 +430,25 @@ export class SentenceBlock extends Quizzable {
         }
       }
     }
-    if (setEq(clozedParticles, new Set(this.clozedParticles)) &&
-        setEq(clozedConjugations, new Set(this.clozedConjugations))) {
-      // all done.
-      return;
+    {
+      let existingParticles = new Set(
+          this.bullets.filter(b => b instanceof QuizClozedParticle).map(q => (q as QuizClozedParticle).particle));
+      for (let p of clozedParticles) {
+        if (!existingParticles.has(p)) { this.bullets.push(new QuizClozedParticle(this, p)); }
+      }
     }
-    // Existing clozes don't match parsed ones. FIXME doesn't handle over-determined contexts for clozes
-    if (this.ebisu && this.ebisu.size > 0) {
-      throw new Error('Refusing to modify clozes/readings for learned items (with Ebisu models)');
+    {
+      let existingConjugations = new Set(this.bullets.filter(b => b instanceof QuizClozedConjugation)
+                                             .map(q => (q as QuizClozedConjugation).conjugation));
+      for (let c of clozedConjugations) {
+        if (!existingConjugations.has(c)) { this.bullets.push(new QuizClozedConjugation(this, c)); }
+      }
     }
-    // Delete all existing clozes and insert new ones
-    let linos: number[] = Array.from(this.clozeNameToLino.keys())
-                              .filter(o => o.indexOf(SentenceBlock.clozedConjugationStart) >= 0 ||
-                                           o.indexOf(SentenceBlock.clozedParticleStart) >= 0)
-                              .map(k => this.clozeNameToLino.get(k)) as number[];
-    if (linos.some(n => typeof n === 'undefined')) { throw new Error('cloze not found in clozeNameToLino'); }
-    if (linos.length !== this.clozedParticles.length + this.clozedConjugations.length) {
-      throw new Error('Did not find equal number of clozes and line starts');
-    }
-    // Important: delete from the end!
-    linos.sort((a, b) => b - a);
-    for (let lino of linos) {
-      let nbullets = findSubBlockLength(this.block, lino);
-      this.block.splice(lino, nbullets);
-    }
-    const initialSpaces = ' '.repeat(this.block[1] ? findDashIndex(this.block[1]) : 0);
-    for (let c of clozedConjugations) { this.block.push(initialSpaces + SentenceBlock.clozedConjugationStart + c); }
-    for (let p of clozedParticles) { this.block.push(initialSpaces + SentenceBlock.clozedParticleStart + p); }
-    this.clozedParticles = Array.from(clozedParticles);
-    this.clozedConjugations = Array.from(clozedConjugations);
+  }
+  toString(): string {
+    let ret: (string|null)[] = [this.header];
+    ret = ret.concat(this.bullets.map(b => b instanceof Quiz ? b.toString() : b)).filter(x => x !== null);
+    return ret.join('\n');
   }
 }
 
@@ -524,7 +502,7 @@ export async function verifyAll(content: Content[]) {
 
 const ensureFinalNewline = (s: string) => s.endsWith('\n') ? s : s + '\n';
 const contentToString = (content: Content[]) =>
-    ensureFinalNewline(content.map(o => (o instanceof Array ? o : o.block).join('\n')).join('\n'));
+    ensureFinalNewline(content.map(o => (o instanceof Quizzable ? o.toString() : o.join('\n'))).join('\n'));
 
 const USAGE = `USAGE:
 $ node [this-script.js] [markdown.md]
