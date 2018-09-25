@@ -162,40 +162,7 @@ class Quiz {
 }
 exports.Quiz = Quiz;
 ;
-class QuizClozedConjugation extends Quiz {
-    constructor(sentence, conjugation, line, ebisu) {
-        super();
-        this.sentence = sentence;
-        if (ebisu) {
-            this.ebisu = ebisu;
-        }
-        if (conjugation) {
-            this.conjugation = conjugation;
-        }
-        else if (line) {
-            let idx = line.indexOf(QuizClozedConjugation.init);
-            if (idx < 0) {
-                throw new Error('cannot find QuizClozedConjugation init');
-            }
-            this.conjugation = line.slice(idx + QuizClozedConjugation.init.length).trim();
-        }
-        else {
-            throw new Error('need conjugation or line');
-        }
-    }
-    preQuiz() {
-        let [contexts, clozes] = extractClozed(this.sentence.sentence + ` (${this.sentence.translation})`, this.conjugation);
-        return { contexts, clozes };
-    }
-    toString() {
-        return `${QuizClozedConjugation.init}${this.conjugation}` +
-            (this.ebisu ? `\n  ${ebisuInit}_ ${this.ebisu.toString()}` : ``);
-    }
-}
-QuizClozedConjugation.init = '- ◊cloze conjugation ';
-exports.QuizClozedConjugation = QuizClozedConjugation;
-;
-class QuizClozedParticle extends Quiz {
+class QuizCloze extends Quiz {
     constructor(sentence, particle, line, ebisu) {
         super();
         this.sentence = sentence;
@@ -203,30 +170,29 @@ class QuizClozedParticle extends Quiz {
             this.ebisu = ebisu;
         }
         if (particle) {
-            this.particle = particle;
+            this.cloze = particle;
         }
         else if (line) {
-            let idx = line.indexOf(QuizClozedParticle.init);
+            let idx = line.indexOf(QuizCloze.init);
             if (idx < 0) {
-                throw new Error('cannot find QuizClozedParticle init');
+                throw new Error('cannot find QuizCloze init');
             }
-            this.particle = line.slice(idx + QuizClozedParticle.init.length).trim();
+            this.cloze = line.slice(idx + QuizCloze.init.length).trim();
         }
         else {
             throw new Error('need particle or line');
         }
     }
     preQuiz() {
-        let [contexts, clozes] = extractClozed(this.sentence.sentence + ` (${this.sentence.translation})`, this.particle);
+        let [contexts, clozes] = extractClozed(this.sentence.sentence + ` (${this.sentence.translation})`, this.cloze);
         return { contexts, clozes };
     }
     toString() {
-        return `${QuizClozedParticle.init}${this.particle}` +
-            (this.ebisu ? `\n  ${ebisuInit}_ ${this.ebisu.toString()}` : ``);
+        return `${QuizCloze.init}${this.cloze}` + (this.ebisu ? `\n  ${ebisuInit}_ ${this.ebisu.toString()}` : ``);
     }
 }
-QuizClozedParticle.init = '- ◊cloze particle ';
-exports.QuizClozedParticle = QuizClozedParticle;
+QuizCloze.init = '- ◊cloze ';
+exports.QuizCloze = QuizCloze;
 ;
 class QuizRelated extends Quiz {
     constructor(line, ebisu) {
@@ -325,11 +291,8 @@ class SentenceBlock extends Quizzable {
                 else if (trimmedLine.startsWith(QuizRelated.init) && initialIndent === thisIndent) {
                     this.bullets.push(new QuizRelated(line));
                 }
-                else if (trimmedLine.startsWith(QuizClozedParticle.init) && initialIndent === thisIndent) {
-                    this.bullets.push(new QuizClozedParticle(this, undefined, line));
-                }
-                else if (trimmedLine.startsWith(QuizClozedConjugation.init) && initialIndent === thisIndent) {
-                    this.bullets.push(new QuizClozedConjugation(this, undefined, line));
+                else if (trimmedLine.startsWith(QuizCloze.init) && initialIndent === thisIndent) {
+                    this.bullets.push(new QuizCloze(this, undefined, line));
                 }
                 else {
                     this.bullets.push(line);
@@ -411,8 +374,7 @@ class SentenceBlock extends Quizzable {
         });
     }
     identifyQuizItems(bunsetsus) {
-        let clozedParticles = new Set([]);
-        let clozedConjugations = new Set([]);
+        let clozes = new Set([]);
         const particlePredicate = (p) => p.partOfSpeech[0].startsWith('particle') && p.partOfSpeech.length > 1 &&
             !p.partOfSpeech[1].startsWith('phrase_final');
         {
@@ -440,7 +402,7 @@ class SentenceBlock extends Quizzable {
                 let cloze = bunsetsuToString(ignoreRight.length === 0 ? bunsetsu : bunsetsu.slice(0, -ignoreRight.length));
                 let left = bunsetsus.slice(0, bidx).map(bunsetsuToString).join('');
                 let right = bunsetsuToString(ignoreRight) + bunsetsus.slice(bidx + 1).map(bunsetsuToString).join('');
-                clozedConjugations.add(generateContextClozed(left, cloze, right));
+                clozes.add(generateContextClozed(left, cloze, right));
             }
             else {
                 // only add particles if they're NOT inside conjugated phrases
@@ -448,26 +410,15 @@ class SentenceBlock extends Quizzable {
                     if (particlePredicate(particle)) {
                         let left = bunsetsus.slice(0, bidx).map(bunsetsuToString).join('') + bunsetsuToString(bunsetsu.slice(0, pidx));
                         let right = bunsetsuToString(bunsetsu.slice(pidx + 1)) + bunsetsus.slice(bidx + 1).map(bunsetsuToString).join('');
-                        clozedParticles.add(generateContextClozed(left, particle.literal, right));
+                        clozes.add(generateContextClozed(left, particle.literal, right));
                     }
                 }
             }
         }
-        {
-            let existingParticles = new Set(this.bullets.filter(b => b instanceof QuizClozedParticle).map(q => q.particle));
-            for (let p of clozedParticles) {
-                if (!existingParticles.has(p)) {
-                    this.bullets.push(new QuizClozedParticle(this, p));
-                }
-            }
-        }
-        {
-            let existingConjugations = new Set(this.bullets.filter(b => b instanceof QuizClozedConjugation)
-                .map(q => q.conjugation));
-            for (let c of clozedConjugations) {
-                if (!existingConjugations.has(c)) {
-                    this.bullets.push(new QuizClozedConjugation(this, c));
-                }
+        let existingClozes = new Set(this.bullets.filter(b => b instanceof QuizCloze).map(q => q.cloze));
+        for (let p of clozes) {
+            if (!existingClozes.has(p)) {
+                this.bullets.push(new QuizCloze(this, p));
             }
         }
     }

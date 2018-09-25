@@ -23,11 +23,8 @@ test('More complex parsing', async t => {
   t.assert(s instanceof md.SentenceBlock);
   await s.verify();
   t.equal(s.reading, 'やまだはせんせいにほめられた');
-  t.deepEqual(s.bullets.filter(b => b instanceof md.QuizClozedConjugation)
-                  .map(c => (c as md.QuizClozedConjugation).conjugation),
-              ['ほめられた']);
-  t.deepEqual(s.bullets.filter(b => b instanceof md.QuizClozedParticle).map(c => (c as md.QuizClozedParticle).particle),
-              'は,に'.split(','));
+  t.deepEqual(s.bullets.filter(b => b instanceof md.QuizCloze).map(c => (c as md.QuizCloze).cloze).sort(),
+              'に,は,ほめられた'.split(',').sort());
   t.end();
 });
 
@@ -39,11 +36,8 @@ test('Context-cloze complex parsing', async t => {
 
   await s.verify();
   t.equal(s.reading, 'にんじんはせんせいにほめられた');
-  t.deepEqual(s.bullets.filter(b => b instanceof md.QuizClozedConjugation)
-                  .map(c => (c as md.QuizClozedConjugation).conjugation),
-              ['ほめられた']);
-  t.deepEqual(s.bullets.filter(b => b instanceof md.QuizClozedParticle).map(c => (c as md.QuizClozedParticle).particle),
-              'は,生[に]ほ'.split(','));
+  t.deepEqual(s.bullets.filter(b => b instanceof md.QuizCloze).map(c => (c as md.QuizCloze).cloze).sort(),
+              'は,生[に]ほ,ほめられた'.split(',').sort());
   t.end();
 });
 
@@ -61,7 +55,7 @@ test('Learning and quizzing', async t => {
   for (let quiz of (quizs as md.Quiz[])) {
     let clozeStruct = quiz.preQuiz();
     t.equal(clozeStruct.contexts.filter(s => !s).length, clozeStruct.clozes.length);
-    if (quiz instanceof md.QuizClozedConjugation || quiz instanceof md.QuizClozedParticle) {
+    if (quiz instanceof md.QuizCloze) {
       t.ok(utils.fillHoles(clozeStruct.contexts, clozeStruct.clozes).join('').includes(s.sentence));
     }
   }
@@ -104,10 +98,10 @@ test('Kanji in conjugated phrase will be needed during quiz', async t => {
 
   s.learn();
 
-  let conjQuizs = s.bullets.filter(b => b instanceof md.QuizClozedConjugation);
-  t.is(conjQuizs.length, 1);
-  let quiz: md.QuizClozedConjugation = conjQuizs[0] as md.QuizClozedConjugation;
-  t.is(quiz.conjugation, '褒められた');
+  let clozes = s.bullets.filter(b => b instanceof md.QuizCloze) as md.QuizCloze[];
+  t.is(clozes.length, 3);
+  let quiz = clozes.filter(q => q.cloze.endsWith('れた'))[0];
+  t.is(quiz.cloze, '褒められた');
   let clozeStruct = quiz.preQuiz();
   t.equal(clozeStruct.clozes[0], '褒められた');
   t.end();
@@ -122,7 +116,7 @@ test('What happens with multiple same particle? Each different particle is track
 
   await s.verify();
   s.learn();
-  let quizs = s.bullets.filter(b => b instanceof md.QuizClozedParticle) as md.QuizClozedParticle[];
+  let quizs = s.bullets.filter(b => b instanceof md.QuizCloze) as md.QuizCloze[];
 
   for (let quiz of quizs) {
     let clozeStruct = quiz.preQuiz();

@@ -150,59 +150,30 @@ export abstract class Quiz {
   abstract toString(): string|null;
 };
 
-export class QuizClozedConjugation extends Quiz {
-  static init = '- ◊cloze conjugation ';
-  conjugation: string;
-  sentence: SentenceBlock;
-  constructor(sentence: SentenceBlock, conjugation?: string, line?: string, ebisu?: Ebisu) {
-    super();
-    this.sentence = sentence;
-    if (ebisu) { this.ebisu = ebisu; }
-    if (conjugation) {
-      this.conjugation = conjugation;
-    } else if (line) {
-      let idx = line.indexOf(QuizClozedConjugation.init);
-      if (idx < 0) { throw new Error('cannot find QuizClozedConjugation init'); }
-      this.conjugation = line.slice(idx + QuizClozedConjugation.init.length).trim();
-    } else {
-      throw new Error('need conjugation or line');
-    }
-  }
-  preQuiz(): {contexts: (string|null)[], clozes: string[]} {
-    let [contexts, clozes] =
-        extractClozed(this.sentence.sentence + ` (${this.sentence.translation})`, this.conjugation);
-    return {contexts, clozes};
-  }
-  toString(): string|null {
-    return `${QuizClozedConjugation.init}${this.conjugation}` +
-           (this.ebisu ? `\n  ${ebisuInit}_ ${this.ebisu.toString()}` : ``);
-  }
-};
-export class QuizClozedParticle extends Quiz {
-  static init = '- ◊cloze particle ';
-  particle: string;
+export class QuizCloze extends Quiz {
+  static init = '- ◊cloze ';
+  cloze: string;
   sentence: SentenceBlock;
   constructor(sentence: SentenceBlock, particle?: string, line?: string, ebisu?: Ebisu) {
     super();
     this.sentence = sentence;
     if (ebisu) { this.ebisu = ebisu; }
     if (particle) {
-      this.particle = particle;
+      this.cloze = particle;
     } else if (line) {
-      let idx = line.indexOf(QuizClozedParticle.init);
-      if (idx < 0) { throw new Error('cannot find QuizClozedParticle init'); }
-      this.particle = line.slice(idx + QuizClozedParticle.init.length).trim();
+      let idx = line.indexOf(QuizCloze.init);
+      if (idx < 0) { throw new Error('cannot find QuizCloze init'); }
+      this.cloze = line.slice(idx + QuizCloze.init.length).trim();
     } else {
       throw new Error('need particle or line')
     }
   }
   preQuiz(): {contexts: (string|null)[], clozes: string[]} {
-    let [contexts, clozes] = extractClozed(this.sentence.sentence + ` (${this.sentence.translation})`, this.particle);
+    let [contexts, clozes] = extractClozed(this.sentence.sentence + ` (${this.sentence.translation})`, this.cloze);
     return {contexts, clozes};
   }
   toString(): string|null {
-    return `${QuizClozedParticle.init}${this.particle}` +
-           (this.ebisu ? `\n  ${ebisuInit}_ ${this.ebisu.toString()}` : ``);
+    return `${QuizCloze.init}${this.cloze}` + (this.ebisu ? `\n  ${ebisuInit}_ ${this.ebisu.toString()}` : ``);
   }
 };
 export class QuizRelated extends Quiz {
@@ -295,10 +266,8 @@ export class SentenceBlock extends Quizzable {
           }
         } else if (trimmedLine.startsWith(QuizRelated.init) && initialIndent === thisIndent) {
           this.bullets.push(new QuizRelated(line));
-        } else if (trimmedLine.startsWith(QuizClozedParticle.init) && initialIndent === thisIndent) {
-          this.bullets.push(new QuizClozedParticle(this, undefined, line));
-        } else if (trimmedLine.startsWith(QuizClozedConjugation.init) && initialIndent === thisIndent) {
-          this.bullets.push(new QuizClozedConjugation(this, undefined, line));
+        } else if (trimmedLine.startsWith(QuizCloze.init) && initialIndent === thisIndent) {
+          this.bullets.push(new QuizCloze(this, undefined, line));
         } else {
           this.bullets.push(line);
         }
@@ -366,8 +335,7 @@ export class SentenceBlock extends Quizzable {
     }
   }
   identifyQuizItems(bunsetsus: Morpheme[][]) {
-    let clozedParticles: Set<string> = new Set([]);
-    let clozedConjugations: Set<string> = new Set([]);
+    let clozes: Set<string> = new Set([]);
     const particlePredicate = (p: Morpheme) => p.partOfSpeech[0].startsWith('particle') && p.partOfSpeech.length > 1 &&
                                                !p.partOfSpeech[1].startsWith('phrase_final');
     {
@@ -393,7 +361,7 @@ export class SentenceBlock extends Quizzable {
         let cloze = bunsetsuToString(ignoreRight.length === 0 ? bunsetsu : bunsetsu.slice(0, -ignoreRight.length));
         let left = bunsetsus.slice(0, bidx).map(bunsetsuToString).join('');
         let right = bunsetsuToString(ignoreRight) + bunsetsus.slice(bidx + 1).map(bunsetsuToString).join('');
-        clozedConjugations.add(generateContextClozed(left, cloze, right));
+        clozes.add(generateContextClozed(left, cloze, right));
       } else {
         // only add particles if they're NOT inside conjugated phrases
         for (let [pidx, particle] of enumerate(bunsetsu)) {
@@ -402,24 +370,14 @@ export class SentenceBlock extends Quizzable {
                 bunsetsus.slice(0, bidx).map(bunsetsuToString).join('') + bunsetsuToString(bunsetsu.slice(0, pidx));
             let right =
                 bunsetsuToString(bunsetsu.slice(pidx + 1)) + bunsetsus.slice(bidx + 1).map(bunsetsuToString).join('');
-            clozedParticles.add(generateContextClozed(left, particle.literal, right));
+            clozes.add(generateContextClozed(left, particle.literal, right));
           }
         }
       }
     }
-    {
-      let existingParticles = new Set(
-          this.bullets.filter(b => b instanceof QuizClozedParticle).map(q => (q as QuizClozedParticle).particle));
-      for (let p of clozedParticles) {
-        if (!existingParticles.has(p)) { this.bullets.push(new QuizClozedParticle(this, p)); }
-      }
-    }
-    {
-      let existingConjugations = new Set(this.bullets.filter(b => b instanceof QuizClozedConjugation)
-                                             .map(q => (q as QuizClozedConjugation).conjugation));
-      for (let c of clozedConjugations) {
-        if (!existingConjugations.has(c)) { this.bullets.push(new QuizClozedConjugation(this, c)); }
-      }
+    let existingClozes = new Set(this.bullets.filter(b => b instanceof QuizCloze).map(q => (q as QuizCloze).cloze));
+    for (let p of clozes) {
+      if (!existingClozes.has(p)) { this.bullets.push(new QuizCloze(this, p)); }
     }
   }
   toString(): string {
