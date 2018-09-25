@@ -13,13 +13,9 @@ For Ebisu-related scheduling debug information:
 
 import {fill} from './cliFillInTheBlanks';
 import {cliPrompt} from './cliPrompt';
-import {Content, Quizzable, SentenceBlock, textToBlocks, verifyAll} from './markdown';
-import {fillHoles} from './utils';
+import {Content, Quiz, Quizzable, Predicted, SentenceBlock, textToBlocks, verifyAll, contentToString} from './markdown';
 import {Ebisu} from './ebisu';
-
-const ensureFinalNewline = (s: string) => s.endsWith('\n') ? s : s + '\n';
-const contentToString = (content: Array<Content>) =>
-    ensureFinalNewline(content.map(o => (o instanceof Array ? o : o.block).join('\n')).join('\n'));
+import {argmin} from './utils';
 
 async function cloze(clozes: Array<string|null>): Promise<string[]> {
   let numberOfParticles = 0;
@@ -69,39 +65,48 @@ if (require.main === module) {
     // Parses Markdown and if necessary invokes MeCab/Jdepp
     await verifyAll(content);
 
-    let learned: Quizzable[] = content.filter(o => o instanceof Quizzable && o.ebisu) as Quizzable[];
+    let learned: Quizzable[] = content.filter(o => o instanceof Quizzable && o.learned()) as Quizzable[];
 
     let mode = process.argv[2];
     if (mode === 'quiz') {
       let now: Date = new Date();
-      let toQuiz: Quizzable|undefined;
-      let learnedProbs = learned.map(o => o.predict(now));
-      let quizProb = learned.reduce(
-          ([q, p], curr, idx) => (learnedProbs[idx] < p ? [curr, learnedProbs[idx]] : [q, p]) as [Quizzable, number],
-          [undefined, Infinity] as [Quizzable | undefined, number]);
-      toQuiz = quizProb[0];
-      if (learned.length > 5) {
-        // If enough items have been learned, let's add some randomization. We'll still ask a quiz with low
-        // recall probability, but shuffling low-probability quizzes is nice to avoid quizzing in the same
-        // order as learned.
-        let minProb = quizProb[1];
-        let maxProb = [.001, .01, .1, .2, .3, .4, .5].find(x => x > minProb);
-        if (maxProb !== undefined) {
-          let toQuizs = learned.filter((_, qidx) => learnedProbs[qidx] <= (maxProb || 1));
-          if (toQuizs.length > 0) { toQuiz = toQuizs[Math.floor(Math.random() * toQuizs.length)]; }
+      let toQuiz: Quiz|undefined;
+      let toQuizzable: Quizzable|undefined;
+      let predictions = learned.map(q => q.predict()) as Predicted[];
+      if (predictions.some(x => !x)) { throw new Error('typescript pacification: predictions on learned ok'); }
+      let minIdx = argmin(predictions, p => p.prob);
+      if (minIdx >= 0) {
+        [toQuiz, toQuizzable] = [predictions[minIdx].quiz, learned[minIdx]];
+        if (learned.length > 5) {
+          // If enough items have been learned, let's add some randomization. We'll still ask a quiz with low
+          // recall probability, but shuffling low-probability quizzes is nice to avoid quizzing in the same
+          // order as learned.
+          let minProb = predictions[minIdx].prob;
+          let maxProb = [.001, .01, .1, .2, .3, .4, .5].find(x => x > minProb);
+          if (maxProb !== undefined) {
+            let max = maxProb;
+            let groupPredictionsQuizzables =
+                predictions.map((p, i) => [p, learned[i]] as [Predicted, Quizzable]).filter(([p, q]) => p.prob <= max);
+            if (groupPredictionsQuizzables.length > 0) {
+              let randIdx = Math.floor(Math.random() * groupPredictionsQuizzables.length);
+              [toQuiz, toQuizzable] =
+                  [groupPredictionsQuizzables[randIdx][0].quiz, groupPredictionsQuizzables[randIdx][1]];
+            }
+          }
         }
       }
 
-      if (!toQuiz) {
+      if (!(toQuiz && toQuizzable)) {
         console.log('Nothing to review. Learn something and try again.')
         process.exit(0);
+        return;
       }
 
-      if (toQuiz instanceof SentenceBlock) {
-        let {quizName, contexts, clozes} = toQuiz.preQuiz(now);
+      if (toQuizzable instanceof SentenceBlock) {
+        let {contexts, clozes} = toQuiz.preQuiz();
         let responses = await cloze(contexts);
-        let correct = toQuiz.postQuiz(quizName, clozes, responses, now);
-        let summary = toQuiz.block[0];
+        let correct = toQuizzable.postQuiz(toQuiz, clozes, responses, now);
+        let summary = toQuizzable.header;
         summary = summary.slice(summary.indexOf(SentenceBlock.init) + SentenceBlock.init.length);
         if (correct) {
           console.log('💥 🔥 🎆 🎇 👏 🙌 👍 👌! ' + summary);
@@ -116,8 +121,8 @@ if (require.main === module) {
       //
       // Learn
       //
-      let toLearn: SentenceBlock|undefined =
-          content.find(o => o instanceof SentenceBlock && !o.ebisu) as (SentenceBlock | undefined);
+      let toLearn: Quizzable|undefined =
+          content.find(o => o instanceof Quizzable && !o.learned()) as (Quizzable | undefined);
       if (!toLearn) {
         console.log('Nothing to learn!');
         process.exit(0);
@@ -157,16 +162,12 @@ if (require.main === module) {
       }
 
       // Print
-      let sorted = learned.slice();
-      sorted.sort((a, b) => a.predict(now) - b.predict(now));
+      let sorted = learned.map(q => [q.predict(), q.header]).filter(p => !!p) as [Predicted, string][];
+      sorted.sort((a, b) => a[0].prob - b[0].prob);
       console.log(sorted
-                      .map(o => {
-                        let status: {ebisu?: Ebisu} = {};
-                        let precall = o.predict(now, status);
-                        if (!status.ebisu) { throw new Error('TypeScript pacification: predict-!>Ebisu obj'); }
-                        return 'Precall=' + (100 * precall).toFixed(1) +
-                               '%  hl=' + halflife(status.ebisu).toExponential(2) + 'hours  ' + o.block[0]
-                      })
+                      .map(([{prob: precall, quiz}, title]) => 'Precall=' + (100 * precall).toFixed(1) +
+                                                               '%  hl=' + halflife(quiz.ebisu).toExponential(2) +
+                                                               'hours  ' + title)
                       .join('\n'));
     } else {
       console.error('Unknown mode. See usage below.');

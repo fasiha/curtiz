@@ -9,11 +9,19 @@ const ebisuVersion = '1';
 const ebisuInit: string = '- ◊Ebisu' + ebisuVersion + ' ';
 
 export abstract class Quizzable {
-  abstract predict(now?: Date): {prob: number, quiz: Quiz, unlearned: any}|undefined;
+  abstract header: string;
+  abstract predict(now?: Date): Predicted|undefined;
   abstract learn(now?: Date, scale?: number): void;
   abstract postQuiz(quizCompleted: Quiz, clozes: string[], results: string[], now?: Date, scale?: number): boolean;
+  abstract learned(): boolean;
+  abstract numUnlearned(): number;
 }
 export type Content = Quizzable|string[];
+export type Predicted = {
+  prob: number,
+  quiz: Quiz,
+  unlearned: any
+};
 
 /**
  * Ensure needle is found in haystack only once
@@ -233,7 +241,7 @@ export class QuizReading extends Quiz {
     return { contexts: [`${this.sentence.sentence}: enter reading: `, null], clozes: [this.sentence.reading] }
   }
   toString(): string|null {
-    return this.ebisu ? `${ebisuInit} ${QuizReading.ebisuName} ${this.ebisu.toString()}` : null;
+    return this.ebisu ? `${ebisuInit}${QuizReading.ebisuName} ${this.ebisu.toString()}` : null;
   }
 };
 type Bullet = string|Quiz;
@@ -470,7 +478,7 @@ export async function verifyAll(content: Content[]) {
 }
 
 const ensureFinalNewline = (s: string) => s.endsWith('\n') ? s : s + '\n';
-const contentToString = (content: Content[]) =>
+export const contentToString = (content: Content[]) =>
     ensureFinalNewline(content.map(o => (o instanceof Quizzable ? o.toString() : o.join('\n'))).join('\n'));
 
 const USAGE = `USAGE:
