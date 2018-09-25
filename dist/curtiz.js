@@ -14,7 +14,9 @@ For a quiz:
     $ node [this-script.js] quiz [markdown.md]
 For learning:
     $ node [this-script.js] learn [markdown.md]
-Either of these will overwrite markdown.md (after creating markdown.md.bak backup).
+To just automatically parse the Markdown file using MeCab/J.DepP:
+    $ node [this-script.js] parse [markdown.md]
+These will overwrite markdown.md (after creating markdown.md.bak backup).
 
 For Ebisu-related scheduling debug information:
     $ node [this-script.js] ebisu [markdown.md]
@@ -190,6 +192,9 @@ if (require.main === module) {
                     '%  hl=' + halflife(quiz.ebisu).toExponential(2) +
                     'hours  ' + title)
                     .join('\n'));
+            }
+            else if (mode === 'parse') {
+                writeFile(filename, markdown_1.contentToString(content));
             }
             else {
                 console.error('Unknown mode. See usage below.');
