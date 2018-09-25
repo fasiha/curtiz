@@ -147,13 +147,13 @@ function lineToEbisu(line) {
     if (!res) {
         return null;
     }
-    let withoutInit = line.slice(res[0].length);
+    let withoutInit = line.slice(res[0].length + (res.index || 0));
     res = withoutInit.match(nonwsRegexp);
     if (!res) {
         return null;
     }
     let name = res[0];
-    let withoutCruft = withoutInit.slice(res[0].length);
+    let withoutCruft = withoutInit.slice(res[0].length + (res.index || 0));
     let ebisu = ebisu_1.Ebisu.fromString(withoutCruft.trim());
     return { name, ebisu };
 }
@@ -189,7 +189,7 @@ class QuizClozedConjugation extends Quiz {
     }
     toString() {
         return `${QuizClozedConjugation.init}${this.conjugation}` +
-            (this.ebisu ? `\n  ${ebisuInit} _ ${this.ebisu.toString()}` : ``);
+            (this.ebisu ? `\n  ${ebisuInit}_ ${this.ebisu.toString()}` : ``);
     }
 }
 QuizClozedConjugation.init = '- ◊cloze conjugation ';
@@ -222,7 +222,7 @@ class QuizClozedParticle extends Quiz {
     }
     toString() {
         return `${QuizClozedParticle.init}${this.particle}` +
-            (this.ebisu ? `\n  ${ebisuInit} _ ${this.ebisu.toString()}` : ``);
+            (this.ebisu ? `\n  ${ebisuInit}_ ${this.ebisu.toString()}` : ``);
     }
 }
 QuizClozedParticle.init = '- ◊cloze particle ';
@@ -253,7 +253,7 @@ class QuizRelated extends Quiz {
     }
     toString() {
         return `${QuizRelated.init}${[this.reading, this.translation, this.written].filter(x => !!x).join(' ' + this.fieldSep + ' ')}` +
-            (this.ebisu ? `\n  ${ebisuInit} _ ${this.ebisu.toString()}` : ``);
+            (this.ebisu ? `\n  ${ebisuInit}_ ${this.ebisu.toString()}` : ``);
     }
 }
 QuizRelated.init = '- ◊related ';
