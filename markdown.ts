@@ -7,10 +7,9 @@ import {argmin, enumerate, filterRight, flatten, hasKanji, setEq, zip} from './u
 const DEFAULT_HALFLIFE_HOURS = 0.25;
 const ebisuVersion = '1';
 const ebisuInit: string = '- ◊Ebisu' + ebisuVersion + ' ';
-const ebisuDateSeparator = ';';
 
 export abstract class Quizzable {
-  abstract predict(now?: Date): {prob: number, quiz: any};
+  abstract predict(now?: Date): {prob: number, quiz: Quiz, unlearned: any}|undefined;
   abstract learn(now?: Date, scale?: number): void;
   abstract postQuiz(quizCompleted: Quiz, clozes: string[], results: string[], now?: Date, scale?: number): boolean;
 }
@@ -120,56 +119,26 @@ async function addJdepp(raw: string, morphemes: Morpheme[]): Promise<Morpheme[][
 
 const bunsetsuToString = (morphemes: Morpheme[]) => morphemes.map(m => m.literal).join('');
 
-function findDashIndex(s: string): number {
-  let dashMatch = s.match(/-/);
-  if (!dashMatch || dashMatch.index === undefined) { throw new Error('TypeScript pacification: regexp failed?'); }
-  return dashMatch.index;
-}
-
-function findSubBlockLength(block: string[], startIdx: number): number {
-  let headSpaces = findDashIndex(block[startIdx]);
-  let subBullets = block.slice(startIdx + 1).findIndex(s => findDashIndex(s) <= headSpaces);
-  if (subBullets < 0) { return block.length - startIdx; }
-  return subBullets + 1;
-}
-
-function blockToFirstEbisu(block: string[], status?: {lino?: number}) {
+function lineToEbisu(line: string): {name: string, ebisu: Ebisu}|null {
   const ebisuRegexp = new RegExp('^\\s*' + ebisuInit);
   const nonwsRegexp = /\S+/;
-  for (let [lidx, line] of enumerate(block)) {
-    let res = line.match(ebisuRegexp);
-    if (!res) { continue; }
-    let withoutInit = line.slice(res[0].length);
+  let res = line.match(ebisuRegexp);
+  if (!res) { return null; }
+  let withoutInit = line.slice(res[0].length);
 
-    res = withoutInit.match(nonwsRegexp);
-    if (!res) { continue; }
-    let name = res[0];
+  res = withoutInit.match(nonwsRegexp);
+  if (!res) { return null; }
+  let name = res[0];
 
-    let withoutCruft = withoutInit.slice(res[0].length);
-    let ebisu = Ebisu.fromString(withoutCruft.replace(ebisuDateSeparator, Ebisu.fieldSeparator).trim());
-    if (status) { status.lino = lidx; }
-    return {name, ebisu};
-  }
-  return null;
+  let withoutCruft = withoutInit.slice(res[0].length);
+  let ebisu = Ebisu.fromString(withoutCruft.trim());
+  return {name, ebisu};
 }
 function last<T>(v: T[]): T|undefined { return v[v.length - 1]; }
 
-function updateBlockEbisu(block: string[], startIdx: number, ebisu: Ebisu) {
-  let rows = findSubBlockLength(block, startIdx);
-  const ebisuRegexp = new RegExp('^\\s*' + ebisuInit + '[^ ]+ ');
-  for (let [lidx, line] of enumerate(block.slice(startIdx, startIdx + rows))) {
-    let hit = line.match(ebisuRegexp);
-    if (!hit) { continue; }
-    let eStrings = ebisu.toString();
-    let eString = hit[0] + eStrings[0] + ebisuDateSeparator + ' ' + eStrings[1];
-    block[lidx + startIdx] = eString;
-    return;
-  }
-  throw new Error('Ebisu not found in block, cannot update')
-}
-
 export abstract class Quiz {
   ebisu?: any;
+  abstract preQuiz(): {contexts: (string|null)[], clozes: string[]};
   abstract toString(): string|null;
 };
 export class QuizClozedConjugation extends Quiz {
@@ -272,7 +241,6 @@ type Bullet = string|Quiz;
 export class SentenceBlock extends Quizzable {
   header: string;
   bullets: Bullet[];
-  // block: string[];
   sentence: string;
   translation: string;
   reading: string;
@@ -305,7 +273,7 @@ export class SentenceBlock extends Quizzable {
         let trimmedLine = line.trimLeft();
 
         if (trimmedLine.startsWith(ebisuInit)) {
-          let extracted = blockToFirstEbisu([line])
+          let extracted = lineToEbisu(line)
           if (extracted) {
             let {name, ebisu} = extracted;
             if (name === QuizReading.ebisuName && thisIndent === initialIndent) {
@@ -332,10 +300,11 @@ export class SentenceBlock extends Quizzable {
   }
   numUnlearned() { return this.bullets.filter(b => b instanceof Quiz && !b.ebisu).length; }
   learned() { return this.bullets.some(b => b instanceof Quiz && b.ebisu); }
-  predict(now?: Date): {prob: number, quiz: Quiz|undefined, unlearned: number} {
+  predict(now?: Date): {prob: number, quiz: Quiz, unlearned: number}|undefined {
     let ret: {min?: Quiz, argmin?: number, minmapped?: number} = {};
-    argmin(this.bullets.filter(b => b instanceof Quiz && b.ebisu), b => (b as Quiz).ebisu.predict(now), ret);
-    return {prob: ret.minmapped || Infinity, quiz: ret.min, unlearned: this.numUnlearned()};
+    let possibleQuizs = this.bullets.filter(b => b instanceof Quiz && b.ebisu);
+    argmin(possibleQuizs, b => (b as Quiz).ebisu.predict(now), ret);
+    return ret.min ? {prob: ret.minmapped || Infinity, quiz: ret.min, unlearned: this.numUnlearned()} : undefined;
   }
   learn(now?: Date, scale: number = 1) {
     now = now || new Date();

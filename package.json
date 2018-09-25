@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@types/node": "^10.5.2",
+    "@types/tape": "^4.2.32",
     "get-stdin": "^6.0.0",
     "tape": "^4.9.1",
     "typescript": "^2.9.2"
