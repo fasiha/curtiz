@@ -71,7 +71,6 @@ if (require.main === module) {
 
     let mode = process.argv[2];
     if (mode === 'quiz') {
-      let now: Date = new Date();
       let finalQuiz: Quiz|undefined;
       let finalQuizzable: Quizzable|undefined;
       let finalPrediction: Predicted|undefined;
@@ -126,6 +125,7 @@ if (require.main === module) {
           }
         }
 
+        let now: Date = new Date();
         let correct = finalQuizzable.postQuiz(finalQuiz, clozes, responses, now, scale);
         let summary = finalQuizzable.header;
         summary = summary.slice(summary.indexOf(SentenceBlock.init) + SentenceBlock.init.length);

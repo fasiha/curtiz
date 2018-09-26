@@ -285,15 +285,17 @@ export class SentenceBlock extends Quizzable {
     return ret.min ? {prob: ret.minmapped || Infinity, quiz: ret.min, unlearned: this.numUnlearned()} : undefined;
   }
   learn(now?: Date, scale: number = 1) {
-    now = now || new Date();
-    const make = () => Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, now);
+    let epoch = now ? now.valueOf() : Date.now();
+    const make = (rand: number) => Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined,
+                                                       new Date(epoch + Math.floor(rand * Math.random() * 250)));
     for (let b of this.bullets) {
-      if (b instanceof Quiz && !b.ebisu) { b.ebisu = make(); }
+      if (b instanceof Quiz && !b.ebisu) { b.ebisu = make(b instanceof QuizReading ? 0 : 1); }
     }
   }
   postQuiz(quizCompleted: Quiz, clozes: string[], results: string[], now?: Date, scale: number = 1): boolean {
     const correct = clozes.every((cloze, cidx) => (cloze === results[cidx]) || (cloze === kata2hira(results[cidx])));
     if (!quizCompleted.ebisu) { throw new Error('refusing to update quiz that was not already learned'); }
+    let epoch = now ? now.valueOf() : Date.now();
     for (let quiz of this.bullets) {
       if (quiz instanceof Quiz) {
         if (quiz === quizCompleted) {
@@ -302,7 +304,8 @@ export class SentenceBlock extends Quizzable {
           if (quiz.ebisu) {
             quiz.ebisu.passiveUpdate(now);
           } else {
-            quiz.ebisu = Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, now);
+            quiz.ebisu = Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined,
+                                             new Date(epoch + Math.floor(Math.random() * 250)));
           }
         }
       }

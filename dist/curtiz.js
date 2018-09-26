@@ -78,7 +78,6 @@ if (require.main === module) {
             let learned = content.filter(o => o instanceof markdown_1.Quizzable && o.learned());
             let mode = process.argv[2];
             if (mode === 'quiz') {
-                let now = new Date();
                 let finalQuiz;
                 let finalQuizzable;
                 let finalPrediction;
@@ -129,6 +128,7 @@ if (require.main === module) {
                             console.log(`${n} sub-fact${n > 1 ? 's' : ''} initial half-life will be ${scale}× default.`);
                         }
                     }
+                    let now = new Date();
                     let correct = finalQuizzable.postQuiz(finalQuiz, clozes, responses, now, scale);
                     let summary = finalQuizzable.header;
                     summary = summary.slice(summary.indexOf(markdown_1.SentenceBlock.init) + markdown_1.SentenceBlock.init.length);
