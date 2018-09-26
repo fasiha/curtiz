@@ -202,8 +202,8 @@ if (require.main === module) {
                                                       }))));
       sorted.sort((a, b) => a.prob - b.prob);
       console.log(sorted
-                      .map(({str, prob, hl}) =>
-                               'Precall=' + (100 * prob).toFixed(1) + '%  hl=' + hl.toExponential(2) + 'hours  ' + str)
+                      .map(({str, prob, hl}) => 'Precall=' + (100 * prob).toFixed(1).padStart(4, '0') +
+                                                '%  hl=' + hl.toExponential(2) + 'hours  ' + str)
                       .join('\n'))
     } else if (mode === 'parse') {
       writeFile(filename, contentToString(content));
