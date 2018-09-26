@@ -52,7 +52,7 @@ async function cloze(clozes: Array<string|null>): Promise<string[]> {
 if (require.main === module) {
   const promisify = require('util').promisify;
   const readFile = promisify(require('fs').readFile);
-  const writeFile = promisify(require('fs').writeFile);
+  const stat = promisify(require('fs').stat);
   (async function() {
     if (process.argv.length < 4) {
       console.log(USAGE);
@@ -61,7 +61,20 @@ if (require.main === module) {
     // Read file and create backup
     const filename = process.argv[3];
     const text = await readFile(filename, 'utf8');
-    writeFile(filename + '.bak', text);
+    const modifiedTime: number = (await stat(filename)).mtimeMs;
+    const writer = async (text: string) => {
+      const writeFile = promisify(require('fs').writeFile);
+      const newModifiedTime: number = (await stat(filename)).mtimeMs;
+      if (newModifiedTime > modifiedTime) {
+        console.error(
+            `⚠️ ${filename}` +
+            ` has been modified, refusing to overwrite it.⚠️\n⚠️ Your quiz has not been saved.️️⚠️\n⚠️ Sorry!️️⚠️`);
+        process.exit(1);
+        return;
+      }
+      return Promise.all([writeFile(filename + '.bak', text), writeFile(filename, text)]);
+    };
+
     let content: Content[] = textToBlocks(text);
 
     // Parses Markdown and if necessary invokes MeCab/Jdepp
@@ -148,7 +161,7 @@ if (require.main === module) {
       } else {
         throw new Error('Unhandled quiz type');
       }
-      writeFile(filename, contentToString(content));
+      writer(contentToString(content));
     } else if (mode === 'learn') {
       //
       // Learn
@@ -177,7 +190,7 @@ if (require.main === module) {
       const now = new Date();
       toLearn.learn(now, scale);
 
-      writeFile(filename, contentToString(content));
+      writer(contentToString(content));
     } else if (mode === 'ebisu') {
       let now = new Date();
 
@@ -206,7 +219,7 @@ if (require.main === module) {
                                                 '%  hl=' + hl.toExponential(2) + 'hours  ' + str)
                       .join('\n'))
     } else if (mode === 'parse') {
-      writeFile(filename, contentToString(content));
+      writer(contentToString(content));
     } else {
       console.error('Unknown mode. See usage below.');
       console.error(USAGE);

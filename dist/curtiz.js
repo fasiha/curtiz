@@ -61,7 +61,7 @@ function cloze(clozes) {
 if (require.main === module) {
     const promisify = require('util').promisify;
     const readFile = promisify(require('fs').readFile);
-    const writeFile = promisify(require('fs').writeFile);
+    const stat = promisify(require('fs').stat);
     (function () {
         return __awaiter(this, void 0, void 0, function* () {
             if (process.argv.length < 4) {
@@ -71,7 +71,18 @@ if (require.main === module) {
             // Read file and create backup
             const filename = process.argv[3];
             const text = yield readFile(filename, 'utf8');
-            writeFile(filename + '.bak', text);
+            const modifiedTime = (yield stat(filename)).mtimeMs;
+            const writer = (text) => __awaiter(this, void 0, void 0, function* () {
+                const writeFile = promisify(require('fs').writeFile);
+                const newModifiedTime = (yield stat(filename)).mtimeMs;
+                if (newModifiedTime > modifiedTime) {
+                    console.error(`⚠️ ${filename}` +
+                        ` has been modified, refusing to overwrite it.⚠️\n⚠️ Your quiz has not been saved.️️⚠️\n⚠️ Sorry!️️⚠️`);
+                    process.exit(1);
+                    return;
+                }
+                return Promise.all([writeFile(filename + '.bak', text), writeFile(filename, text)]);
+            });
             let content = markdown_1.textToBlocks(text);
             // Parses Markdown and if necessary invokes MeCab/Jdepp
             yield markdown_1.verifyAll(content);
@@ -154,7 +165,7 @@ if (require.main === module) {
                 else {
                     throw new Error('Unhandled quiz type');
                 }
-                writeFile(filename, markdown_1.contentToString(content));
+                writer(markdown_1.contentToString(content));
             }
             else if (mode === 'learn') {
                 //
@@ -182,7 +193,7 @@ if (require.main === module) {
                 }
                 const now = new Date();
                 toLearn.learn(now, scale);
-                writeFile(filename, markdown_1.contentToString(content));
+                writer(markdown_1.contentToString(content));
             }
             else if (mode === 'ebisu') {
                 let now = new Date();
@@ -210,7 +221,7 @@ if (require.main === module) {
                     .join('\n'));
             }
             else if (mode === 'parse') {
-                writeFile(filename, markdown_1.contentToString(content));
+                writer(markdown_1.contentToString(content));
             }
             else {
                 console.error('Unknown mode. See usage below.');
