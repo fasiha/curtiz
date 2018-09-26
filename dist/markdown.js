@@ -115,6 +115,7 @@ function extractClozed(haystack, needleMaybeContext) {
     }
     throw new Error('Could not find cloze');
 }
+const staggeredDate = (start, maxMilliseconds = 750) => new Date(start + Math.floor(Math.random() * maxMilliseconds));
 function parse(sentence) {
     return __awaiter(this, void 0, void 0, function* () {
         let rawMecab = yield mecabUnidic_1.invokeMecab(sentence);
@@ -305,39 +306,38 @@ class SentenceBlock extends Quizzable {
         }
     }
     numUnlearned() { return this.bullets.filter(b => b instanceof Quiz && !b.ebisu).length; }
-    learned() { return this.bullets.some(b => b instanceof Quiz && b.ebisu); }
+    learned() { return this.bullets.some(b => b instanceof Quiz && !!b.ebisu); }
     predict(now) {
         let ret = {};
         let possibleQuizs = this.bullets.filter(b => b instanceof Quiz && b.ebisu);
-        utils_1.argmin(possibleQuizs, b => b.ebisu.predict(now), ret);
+        utils_1.argmin(possibleQuizs, b => b.ebisu ? b.ebisu.predict(now) : Infinity, ret);
         return ret.min ? { prob: ret.minmapped || Infinity, quiz: ret.min, unlearned: this.numUnlearned() } : undefined;
     }
     learn(now, scale = 1) {
         let epoch = now ? now.valueOf() : Date.now();
-        const make = (rand) => ebisu_1.Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, new Date(epoch + Math.floor(rand * Math.random() * 250)));
         for (let b of this.bullets) {
             if (b instanceof Quiz && !b.ebisu) {
-                b.ebisu = make(b instanceof QuizReading ? 0 : 1);
+                b.ebisu = ebisu_1.Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, (b instanceof QuizReading ? new Date(epoch) : staggeredDate(epoch)));
             }
         }
     }
     postQuiz(quizCompleted, clozes, results, now, scale = 1) {
         const correct = clozes.every((cloze, cidx) => (cloze === results[cidx]) || (cloze === kana_1.kata2hira(results[cidx])));
-        if (!quizCompleted.ebisu) {
-            throw new Error('refusing to update quiz that was not already learned');
-        }
         let epoch = now ? now.valueOf() : Date.now();
         for (let quiz of this.bullets) {
             if (quiz instanceof Quiz) {
                 if (quiz === quizCompleted) {
+                    if (!quiz.ebisu) {
+                        throw new Error('refusing to update quiz that was not already learned');
+                    }
                     quiz.ebisu.update(correct, now);
                 }
                 else {
                     if (quiz.ebisu) {
-                        quiz.ebisu.passiveUpdate(now);
+                        quiz.ebisu.passiveUpdate(staggeredDate(epoch));
                     }
                     else {
-                        quiz.ebisu = ebisu_1.Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, new Date(epoch + Math.floor(Math.random() * 250)));
+                        quiz.ebisu = ebisu_1.Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, staggeredDate(epoch));
                     }
                 }
             }

@@ -103,6 +103,9 @@ function extractClozed(haystack: string, needleMaybeContext: string): [(string |
   throw new Error('Could not find cloze');
 }
 
+const staggeredDate = (start: number, maxMilliseconds: number = 750) =>
+    new Date(start + Math.floor(Math.random() * maxMilliseconds));
+
 async function parse(sentence: string): Promise<{morphemes: Morpheme[]; bunsetsus: Morpheme[][];}> {
   let rawMecab = await invokeMecab(sentence);
   let morphemes = maybeMorphemesToMorphemes(parseMecab(sentence, rawMecab)[0].filter(o => !!o));
@@ -145,7 +148,7 @@ function lineToEbisu(line: string): {name: string, ebisu: Ebisu}|null {
 function last<T>(v: T[]): T|undefined { return v[v.length - 1]; }
 
 export abstract class Quiz {
-  ebisu?: any;
+  ebisu?: Ebisu;
   abstract preQuiz(): {contexts: (string|null)[], clozes: string[]};
   abstract toString(): string|null;
 };
@@ -277,35 +280,35 @@ export class SentenceBlock extends Quizzable {
     if (!this.bullets.some(q => q instanceof QuizReading)) { this.bullets.push(new QuizReading(this)); }
   }
   numUnlearned() { return this.bullets.filter(b => b instanceof Quiz && !b.ebisu).length; }
-  learned() { return this.bullets.some(b => b instanceof Quiz && b.ebisu); }
+  learned() { return this.bullets.some(b => b instanceof Quiz && !!b.ebisu); }
   predict(now?: Date): {prob: number, quiz: Quiz, unlearned: number}|undefined {
     let ret: {min?: Quiz, argmin?: number, minmapped?: number} = {};
-    let possibleQuizs = this.bullets.filter(b => b instanceof Quiz && b.ebisu);
-    argmin(possibleQuizs, b => (b as Quiz).ebisu.predict(now), ret);
+    let possibleQuizs = this.bullets.filter(b => b instanceof Quiz && b.ebisu) as Quiz[];
+    argmin(possibleQuizs, b => b.ebisu ? b.ebisu.predict(now) : Infinity, ret);
     return ret.min ? {prob: ret.minmapped || Infinity, quiz: ret.min, unlearned: this.numUnlearned()} : undefined;
   }
   learn(now?: Date, scale: number = 1) {
     let epoch = now ? now.valueOf() : Date.now();
-    const make = (rand: number) => Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined,
-                                                       new Date(epoch + Math.floor(rand * Math.random() * 250)));
     for (let b of this.bullets) {
-      if (b instanceof Quiz && !b.ebisu) { b.ebisu = make(b instanceof QuizReading ? 0 : 1); }
+      if (b instanceof Quiz && !b.ebisu) {
+        b.ebisu = Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined,
+                                      (b instanceof QuizReading ? new Date(epoch) : staggeredDate(epoch)));
+      }
     }
   }
   postQuiz(quizCompleted: Quiz, clozes: string[], results: string[], now?: Date, scale: number = 1): boolean {
     const correct = clozes.every((cloze, cidx) => (cloze === results[cidx]) || (cloze === kata2hira(results[cidx])));
-    if (!quizCompleted.ebisu) { throw new Error('refusing to update quiz that was not already learned'); }
     let epoch = now ? now.valueOf() : Date.now();
     for (let quiz of this.bullets) {
       if (quiz instanceof Quiz) {
         if (quiz === quizCompleted) {
+          if (!quiz.ebisu) { throw new Error('refusing to update quiz that was not already learned'); }
           quiz.ebisu.update(correct, now);
         } else {
           if (quiz.ebisu) {
-            quiz.ebisu.passiveUpdate(now);
+            quiz.ebisu.passiveUpdate(staggeredDate(epoch));
           } else {
-            quiz.ebisu = Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined,
-                                             new Date(epoch + Math.floor(Math.random() * 250)));
+            quiz.ebisu = Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, staggeredDate(epoch));
           }
         }
       }

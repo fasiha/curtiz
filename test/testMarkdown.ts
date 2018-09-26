@@ -137,7 +137,7 @@ test('postQuiz', async t => {
   s.learn(hourAgo);
 
   let quizs = s.bullets.filter(b => b instanceof md.Quiz) as md.Quiz[];
-  let initEbisus: Ebisu[] = quizs.map(q => q.ebisu);
+  let initEbisus: Ebisu[] = quizs.map(q => q.ebisu).filter(e => !!e) as Ebisu[];
   t.ok(initEbisus.every(x => x instanceof Ebisu))
   let initModels = initEbisus.map(e => e.model);
   let initStrings = initEbisus.map(e => e.toString());
@@ -220,6 +220,6 @@ test('quizzing a partially-learned block learns them all', async t => {
   t.ok(s.bullets.filter(b => b instanceof md.Quiz).some(q => !((q as md.Quiz).ebisu)));
   s.postQuiz(pred.quiz, ['x'], ['y'], now);
   t.ok(pred.quiz.ebisu);
-  t.ok(s.bullets.filter(b => b instanceof md.Quiz).every(q => (q as md.Quiz).ebisu));
+  t.ok(s.bullets.filter(b => b instanceof md.Quiz).every(q => !!((q as md.Quiz).ebisu)));
   t.end();
 });

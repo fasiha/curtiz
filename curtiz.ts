@@ -197,9 +197,9 @@ if (require.main === module) {
       let sorted = learned.map(q => [q.predict(), q.header]).filter(p => !!p) as [Predicted, string][];
       sorted.sort((a, b) => a[0].prob - b[0].prob);
       console.log(sorted
-                      .map(([{prob: precall, quiz}, title]) => 'Precall=' + (100 * precall).toFixed(1) +
-                                                               '%  hl=' + halflife(quiz.ebisu).toExponential(2) +
-                                                               'hours  ' + title)
+                      .map(([{prob: precall, quiz}, title]) =>
+                               'Precall=' + (100 * precall).toFixed(1) +
+                               '%  hl=' + halflife(quiz.ebisu as Ebisu).toExponential(2) + 'hours  ' + title)
                       .join('\n'));
     } else if (mode === 'parse') {
       writeFile(filename, contentToString(content));

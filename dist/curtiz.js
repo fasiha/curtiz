@@ -201,8 +201,7 @@ if (require.main === module) {
                 sorted.sort((a, b) => a[0].prob - b[0].prob);
                 console.log(sorted
                     .map(([{ prob: precall, quiz }, title]) => 'Precall=' + (100 * precall).toFixed(1) +
-                    '%  hl=' + halflife(quiz.ebisu).toExponential(2) +
-                    'hours  ' + title)
+                    '%  hl=' + halflife(quiz.ebisu).toExponential(2) + 'hours  ' + title)
                     .join('\n'));
             }
             else if (mode === 'parse') {
