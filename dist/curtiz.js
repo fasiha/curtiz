@@ -197,11 +197,15 @@ if (require.main === module) {
                     return (res - e.lastDate.valueOf()) / 36e5;
                 }
                 // Print
-                let sorted = learned.map(q => [q.predict(), q.header]).filter(p => !!p);
-                sorted.sort((a, b) => a[0].prob - b[0].prob);
+                let sorted = utils_1.flatten(learned.map(qz => qz.bullets.filter(b => b instanceof markdown_1.Quiz && !!b.ebisu)
+                    .map(q => ({
+                    str: qz.header + '|' + (q.toString() || '').split('\n')[0],
+                    prob: q.ebisu.predict(now),
+                    hl: halflife(q.ebisu)
+                }))));
+                sorted.sort((a, b) => a.prob - b.prob);
                 console.log(sorted
-                    .map(([{ prob: precall, quiz }, title]) => 'Precall=' + (100 * precall).toFixed(1) +
-                    '%  hl=' + halflife(quiz.ebisu).toExponential(2) + 'hours  ' + title)
+                    .map(({ str, prob, hl }) => 'Precall=' + (100 * prob).toFixed(1) + '%  hl=' + hl.toExponential(2) + 'hours  ' + str)
                     .join('\n'));
             }
             else if (mode === 'parse') {

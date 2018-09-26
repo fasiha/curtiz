@@ -10,6 +10,7 @@ const ebisuInit: string = '- ◊Ebisu' + ebisuVersion + ' ';
 
 export abstract class Quizzable {
   abstract header: string;
+  abstract bullets: Bullet[];
   abstract predict(now?: Date): Predicted|undefined;
   abstract learn(now?: Date, scale?: number): void;
   abstract postQuiz(quizCompleted: Quiz, clozes: string[], results: string[], now?: Date, scale?: number): boolean;

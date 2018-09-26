@@ -17,7 +17,7 @@ import {fill} from './cliFillInTheBlanks';
 import {cliPrompt} from './cliPrompt';
 import {Content, Quiz, Quizzable, Predicted, SentenceBlock, textToBlocks, verifyAll, contentToString} from './markdown';
 import {Ebisu} from './ebisu';
-import {argmin} from './utils';
+import {argmin, flatten} from './utils';
 
 async function cloze(clozes: Array<string|null>): Promise<string[]> {
   let numberOfParticles = 0;
@@ -194,13 +194,17 @@ if (require.main === module) {
       }
 
       // Print
-      let sorted = learned.map(q => [q.predict(), q.header]).filter(p => !!p) as [Predicted, string][];
-      sorted.sort((a, b) => a[0].prob - b[0].prob);
+      let sorted = flatten(learned.map(qz => qz.bullets.filter(b => b instanceof Quiz && !!b.ebisu)
+                                                 .map(q => ({
+                                                        str: qz.header + '|' + (q.toString() || '').split('\n')[0],
+                                                        prob: ((q as Quiz).ebisu as Ebisu).predict(now),
+                                                        hl: halflife((q as Quiz).ebisu as Ebisu)
+                                                      }))));
+      sorted.sort((a, b) => a.prob - b.prob);
       console.log(sorted
-                      .map(([{prob: precall, quiz}, title]) =>
-                               'Precall=' + (100 * precall).toFixed(1) +
-                               '%  hl=' + halflife(quiz.ebisu as Ebisu).toExponential(2) + 'hours  ' + title)
-                      .join('\n'));
+                      .map(({str, prob, hl}) =>
+                               'Precall=' + (100 * prob).toFixed(1) + '%  hl=' + hl.toExponential(2) + 'hours  ' + str)
+                      .join('\n'))
     } else if (mode === 'parse') {
       writeFile(filename, contentToString(content));
     } else {
