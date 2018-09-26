@@ -108,7 +108,18 @@ if (require.main === module) {
       }
 
       if (finalQuizzable instanceof SentenceBlock) {
-        let {contexts, clozes} = finalQuiz.preQuiz();
+        let contexts: (string|null)[] = [];
+        let clozes: string[] = [];
+        try {
+          let ret = finalQuiz.preQuiz();
+          contexts = ret.contexts;
+          clozes = ret.clozes;
+        } catch (e) {
+          console.error('Critical error when preparing a quiz, for item:')
+          console.error(finalQuizzable.toString());
+          process.exit(1);
+          return;
+        }
         let responses = await cloze(contexts);
 
         let scale: number = 1;

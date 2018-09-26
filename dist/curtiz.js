@@ -114,7 +114,19 @@ if (require.main === module) {
                     return;
                 }
                 if (finalQuizzable instanceof markdown_1.SentenceBlock) {
-                    let { contexts, clozes } = finalQuiz.preQuiz();
+                    let contexts = [];
+                    let clozes = [];
+                    try {
+                        let ret = finalQuiz.preQuiz();
+                        contexts = ret.contexts;
+                        clozes = ret.clozes;
+                    }
+                    catch (e) {
+                        console.error('Critical error when preparing a quiz, for item:');
+                        console.error(finalQuizzable.toString());
+                        process.exit(1);
+                        return;
+                    }
                     let responses = yield cloze(contexts);
                     let scale = 1;
                     if (finalPrediction && finalPrediction.unlearned > 0) {
