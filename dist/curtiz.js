@@ -159,7 +159,8 @@ if (require.main === module) {
                         console.log('💥 🔥 🎆 🎇 👏 🙌 👍 👌! ' + summary);
                     }
                     else {
-                        console.log('😭 🙅‍♀️ 🙅‍♂️ 👎 🤬. Correct answer: ' + summary);
+                        console.log('😭 🙅‍♀️ 🙅‍♂️ 👎 🤬. Expected answer: ' + clozes.join(' | '));
+                        console.log(summary);
                     }
                 }
                 else {

@@ -156,7 +156,8 @@ if (require.main === module) {
         if (correct) {
           console.log('💥 🔥 🎆 🎇 👏 🙌 👍 👌! ' + summary);
         } else {
-          console.log('😭 🙅‍♀️ 🙅‍♂️ 👎 🤬. Correct answer: ' + summary);
+          console.log('😭 🙅‍♀️ 🙅‍♂️ 👎 🤬. Expected answer: ' + clozes.join(' | '));
+          console.log(summary);
         }
       } else {
         throw new Error('Unhandled quiz type');
