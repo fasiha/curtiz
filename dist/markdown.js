@@ -82,7 +82,7 @@ function extractClozed(haystack, needleMaybeContext) {
     let bracketMatch = needleMaybeContext.match(re);
     if (bracketMatch) {
         if (typeof bracketMatch.index !== 'number') {
-            throw new Error('TypeScript pactification: match.index invalid');
+            throw new Error('TypeScript pacification: match.index invalid');
         }
         let cloze = bracketMatch[1];
         let leftContext = needleMaybeContext.slice(0, bracketMatch.index);

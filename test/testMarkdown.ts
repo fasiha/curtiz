@@ -77,11 +77,7 @@ test('preQuiz without a name will pick a valid quiz', async t => {
   if (prediction) {
     t.ok(prediction.quiz instanceof md.Quiz)
     t.doesNotThrow(() => {
-      if (prediction) {
-        prediction.quiz.preQuiz();
-      } else {
-        throw new Error('TypeScript pacification: prediction is not undefined.');
-      }
+      if (prediction) { prediction.quiz.preQuiz(); }
     });
   }
   t.end();

@@ -2,7 +2,7 @@ import {Ebisu} from './ebisu';
 import * as jdepp from './jdepp';
 import {kata2hira} from './kana';
 import {goodMorphemePredicate, invokeMecab, maybeMorphemesToMorphemes, Morpheme, parseMecab} from './mecabUnidic';
-import {argmin, enumerate, filterRight, flatten, hasKanji, setEq, zip} from './utils';
+import {argmin, enumerate, filterRight, flatten, hasKanji} from './utils';
 
 const DEFAULT_HALFLIFE_HOURS = 0.25;
 const ebisuVersion = '1';
@@ -78,7 +78,7 @@ function extractClozed(haystack: string, needleMaybeContext: string): [(string |
   let re = /\[([^\]]+)\]/;
   let bracketMatch = needleMaybeContext.match(re);
   if (bracketMatch) {
-    if (typeof bracketMatch.index !== 'number') { throw new Error('TypeScript pactification: match.index invalid'); }
+    if (typeof bracketMatch.index !== 'number') { throw new Error('TypeScript pacification: match.index invalid'); }
     let cloze = bracketMatch[1];
     let leftContext = needleMaybeContext.slice(0, bracketMatch.index);
     let rightContext = needleMaybeContext.slice(bracketMatch.index + bracketMatch[0].length);

@@ -87,8 +87,7 @@ if (require.main === module) {
       let finalQuiz: Quiz|undefined;
       let finalQuizzable: Quizzable|undefined;
       let finalPrediction: Predicted|undefined;
-      let predictions = learned.map(q => q.predict()) as Predicted[];
-      if (predictions.some(x => !x)) { throw new Error('typescript pacification: predictions on learned ok'); }
+      let predictions = learned.map(q => q.predict()).filter(x => !!x) as Predicted[];
       let minIdx = argmin(predictions, p => p.prob);
       if (minIdx >= 0) {
         [finalQuiz, finalQuizzable, finalPrediction] = [predictions[minIdx].quiz, learned[minIdx], predictions[minIdx]];

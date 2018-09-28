@@ -9,7 +9,7 @@
   "scripts": {
     "test": "tape test/*.js",
     "build": "tsc -p .",
-    "dist": "npm run build && cp *.js dist/ && rm dist/tsserver.js"
+    "dist": "npm run build && cp *.js dist/ && rm -f dist/tsserver.js"
   },
   "keywords": [],
   "author": "Ahmed Fasih",

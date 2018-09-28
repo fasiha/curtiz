@@ -92,10 +92,7 @@ if (require.main === module) {
                 let finalQuiz;
                 let finalQuizzable;
                 let finalPrediction;
-                let predictions = learned.map(q => q.predict());
-                if (predictions.some(x => !x)) {
-                    throw new Error('typescript pacification: predictions on learned ok');
-                }
+                let predictions = learned.map(q => q.predict()).filter(x => !!x);
                 let minIdx = utils_1.argmin(predictions, p => p.prob);
                 if (minIdx >= 0) {
                     [finalQuiz, finalQuizzable, finalPrediction] = [predictions[minIdx].quiz, learned[minIdx], predictions[minIdx]];
