@@ -23,142 +23,9 @@ const utils_1 = require("./utils");
 const DEFAULT_HALFLIFE_HOURS = 0.25;
 const ebisuVersion = '1';
 const ebisuInit = '- ◊Ebisu' + ebisuVersion + ' ';
-class Quizzable {
-}
-exports.Quizzable = Quizzable;
-/**
- * Ensure needle is found in haystack only once
- * @param haystack big string
- * @param needle little string
- */
-function appearsExactlyOnce(haystack, needle) {
-    let hit;
-    return (hit = haystack.indexOf(needle)) >= 0 && (hit = haystack.indexOf(needle, hit + 1)) < 0;
-}
-/**
- * Given three consecuties substrings (the arguments), return either
- * - `${left2}[${cloze}]${right2}` where `left2` and `right2` are as short as possible (and of equal length, if
- *    possible) so the this return string (minus the brackets) is unique in the full string, or
- * - `${cloze}` if `left2 === right2 === ''` (i.e., the above but without the brackets).
- * @param left left string, possibly empty
- * @param cloze middle string
- * @param right right string, possible empty
- * @throws in the unlikely event that such a return string cannot be build (I cannot think of an example though)
- */
-function generateContextClozed(left, cloze, right) {
-    const sentence = left + cloze + right;
-    let leftContext = '';
-    let rightContext = '';
-    let contextLength = 0;
-    while (!appearsExactlyOnce(sentence, leftContext + cloze + rightContext)) {
-        contextLength++;
-        if (contextLength >= left.length && contextLength >= right.length) {
-            throw new Error('Ran out of context to build unique cloze');
-        }
-        leftContext = left.slice(-contextLength);
-        rightContext = right.slice(0, contextLength);
-    }
-    if (leftContext === '' && rightContext === '') {
-        return cloze;
-    }
-    return `${leftContext}[${cloze}]${rightContext}`;
-}
-/**
- * Given a big string and a substring, which can be either
- * - a strict substring or
- * - a cloze-deleted string like "left[cloze]right", where only "cloze" should be treated as the substring of interest
- * but where "left" and "right" uniquely determine which appearance of "cloze" in the big string is desired,
- *
- * break the big string into two arrays:
- * 1. [the content to the *left* of the substring/cloze, `null`, the content to the *right* of the substring/cloze], and
- * 1. [the substring/cloze].
- *
- * Replacing `null` in the first array with the contents of the second array will yield `haystack` again.
- * @param haystack Long string
- * @param needleMaybeContext
- */
-function extractClozed(haystack, needleMaybeContext) {
-    let re = /\[([^\]]+)\]/;
-    let bracketMatch = needleMaybeContext.match(re);
-    if (bracketMatch) {
-        if (typeof bracketMatch.index !== 'number') {
-            throw new Error('TypeScript pacification: match.index invalid');
-        }
-        let cloze = bracketMatch[1];
-        let leftContext = needleMaybeContext.slice(0, bracketMatch.index);
-        let rightContext = needleMaybeContext.slice(bracketMatch.index + bracketMatch[0].length);
-        if (re.test(rightContext)) {
-            throw new Error('More than one context unsupported');
-        }
-        let fullRe = new RegExp(leftContext + cloze + rightContext, 'g');
-        let checkContext = fullRe.exec(haystack);
-        if (!checkContext) {
-            throw new Error('Needle not found in haystack');
-        }
-        const left = haystack.slice(0, checkContext.index + leftContext.length);
-        const right = haystack.slice(checkContext.index + checkContext[0].length - rightContext.length);
-        if (fullRe.exec(haystack)) {
-            throw new Error('Insufficient cloze context');
-        }
-        return [[left, null, right], [cloze]];
-    }
-    let cloze = needleMaybeContext;
-    let clozeRe = new RegExp(cloze, 'g');
-    let clozeHit = clozeRe.exec(haystack);
-    if (clozeHit) {
-        let left = haystack.slice(0, clozeHit.index);
-        let right = haystack.slice(clozeHit.index + cloze.length);
-        if (clozeRe.exec(haystack)) {
-            throw new Error('Cloze context required');
-        }
-        return [[left, null, right], [cloze]];
-    }
-    throw new Error('Could not find cloze');
-}
-const staggeredDate = (start, maxMilliseconds = 750) => new Date(start + Math.floor(Math.random() * maxMilliseconds));
-function parse(sentence) {
-    return __awaiter(this, void 0, void 0, function* () {
-        let rawMecab = yield mecabUnidic_1.invokeMecab(sentence);
-        let morphemes = mecabUnidic_1.maybeMorphemesToMorphemes(mecabUnidic_1.parseMecab(sentence, rawMecab)[0].filter(o => !!o));
-        let bunsetsus = yield addJdepp(rawMecab, morphemes);
-        return { morphemes, bunsetsus };
-    });
-}
-function addJdepp(raw, morphemes) {
-    return __awaiter(this, void 0, void 0, function* () {
-        let jdeppRaw = yield jdepp.invokeJdepp(raw);
-        let jdeppSplit = jdepp.parseJdepp('', jdeppRaw);
-        let bunsetsus = [];
-        {
-            let added = 0;
-            for (let bunsetsu of jdeppSplit) {
-                // -1 because each `bunsetsu` array here will contain a header before the morphemes
-                bunsetsus.push(morphemes.slice(added, added + bunsetsu.length - 1));
-                added += bunsetsu.length - 1;
-            }
-        }
-        return bunsetsus;
-    });
-}
-const bunsetsuToString = (morphemes) => morphemes.map(m => m.literal).join('');
-function lineToEbisu(line) {
-    const ebisuRegexp = new RegExp('^\\s*' + ebisuInit);
-    const nonwsRegexp = /\S+/;
-    let res = line.match(ebisuRegexp);
-    if (!res) {
-        return null;
-    }
-    let withoutInit = line.slice(res[0].length + (res.index || 0));
-    res = withoutInit.match(nonwsRegexp);
-    if (!res) {
-        return null;
-    }
-    let name = res[0];
-    let withoutCruft = withoutInit.slice(res[0].length + (res.index || 0));
-    let ebisu = ebisu_1.Ebisu.fromString(withoutCruft.trim());
-    return { name, ebisu };
-}
-function last(v) { return v[v.length - 1]; }
+/*
+Quiz classes (within a Quizzable, defined below)
+*/
 class Quiz {
 }
 exports.Quiz = Quiz;
@@ -242,6 +109,12 @@ class QuizReading extends Quiz {
 QuizReading.ebisuName = 'reading';
 exports.QuizReading = QuizReading;
 ;
+/*
+Quizzables
+*/
+class Quizzable {
+}
+exports.Quizzable = Quizzable;
 class SentenceBlock extends Quizzable {
     constructor(block) {
         super();
@@ -432,6 +305,142 @@ class SentenceBlock extends Quizzable {
 SentenceBlock.init = '◊sent';
 SentenceBlock.fieldSep = '::';
 exports.SentenceBlock = SentenceBlock;
+/*
+Helper functions
+*/
+/**
+ * Ensure needle is found in haystack only once
+ * @param haystack big string
+ * @param needle little string
+ */
+function appearsExactlyOnce(haystack, needle) {
+    let hit;
+    return (hit = haystack.indexOf(needle)) >= 0 && (hit = haystack.indexOf(needle, hit + 1)) < 0;
+}
+/**
+ * Given three consecuties substrings (the arguments), return either
+ * - `${left2}[${cloze}]${right2}` where `left2` and `right2` are as short as possible (and of equal length, if
+ *    possible) so the this return string (minus the brackets) is unique in the full string, or
+ * - `${cloze}` if `left2 === right2 === ''` (i.e., the above but without the brackets).
+ * @param left left string, possibly empty
+ * @param cloze middle string
+ * @param right right string, possible empty
+ * @throws in the unlikely event that such a return string cannot be build (I cannot think of an example though)
+ */
+function generateContextClozed(left, cloze, right) {
+    const sentence = left + cloze + right;
+    let leftContext = '';
+    let rightContext = '';
+    let contextLength = 0;
+    while (!appearsExactlyOnce(sentence, leftContext + cloze + rightContext)) {
+        contextLength++;
+        if (contextLength >= left.length && contextLength >= right.length) {
+            throw new Error('Ran out of context to build unique cloze');
+        }
+        leftContext = left.slice(-contextLength);
+        rightContext = right.slice(0, contextLength);
+    }
+    if (leftContext === '' && rightContext === '') {
+        return cloze;
+    }
+    return `${leftContext}[${cloze}]${rightContext}`;
+}
+/**
+ * Given a big string and a substring, which can be either
+ * - a strict substring or
+ * - a cloze-deleted string like "left[cloze]right", where only "cloze" should be treated as the substring of interest
+ * but where "left" and "right" uniquely determine which appearance of "cloze" in the big string is desired,
+ *
+ * break the big string into two arrays:
+ * 1. [the content to the *left* of the substring/cloze, `null`, the content to the *right* of the substring/cloze], and
+ * 1. [the substring/cloze].
+ *
+ * Replacing `null` in the first array with the contents of the second array will yield `haystack` again.
+ * @param haystack Long string
+ * @param needleMaybeContext
+ */
+function extractClozed(haystack, needleMaybeContext) {
+    let re = /\[([^\]]+)\]/;
+    let bracketMatch = needleMaybeContext.match(re);
+    if (bracketMatch) {
+        if (typeof bracketMatch.index !== 'number') {
+            throw new Error('TypeScript pacification: match.index invalid');
+        }
+        let cloze = bracketMatch[1];
+        let leftContext = needleMaybeContext.slice(0, bracketMatch.index);
+        let rightContext = needleMaybeContext.slice(bracketMatch.index + bracketMatch[0].length);
+        if (re.test(rightContext)) {
+            throw new Error('More than one context unsupported');
+        }
+        let fullRe = new RegExp(leftContext + cloze + rightContext, 'g');
+        let checkContext = fullRe.exec(haystack);
+        if (!checkContext) {
+            throw new Error('Needle not found in haystack');
+        }
+        const left = haystack.slice(0, checkContext.index + leftContext.length);
+        const right = haystack.slice(checkContext.index + checkContext[0].length - rightContext.length);
+        if (fullRe.exec(haystack)) {
+            throw new Error('Insufficient cloze context');
+        }
+        return [[left, null, right], [cloze]];
+    }
+    let cloze = needleMaybeContext;
+    let clozeRe = new RegExp(cloze, 'g');
+    let clozeHit = clozeRe.exec(haystack);
+    if (clozeHit) {
+        let left = haystack.slice(0, clozeHit.index);
+        let right = haystack.slice(clozeHit.index + cloze.length);
+        if (clozeRe.exec(haystack)) {
+            throw new Error('Cloze context required');
+        }
+        return [[left, null, right], [cloze]];
+    }
+    throw new Error('Could not find cloze');
+}
+const staggeredDate = (start, maxMilliseconds = 750) => new Date(start + Math.floor(Math.random() * maxMilliseconds));
+function parse(sentence) {
+    return __awaiter(this, void 0, void 0, function* () {
+        let rawMecab = yield mecabUnidic_1.invokeMecab(sentence);
+        let morphemes = mecabUnidic_1.maybeMorphemesToMorphemes(mecabUnidic_1.parseMecab(sentence, rawMecab)[0].filter(o => !!o));
+        let bunsetsus = yield addJdepp(rawMecab, morphemes);
+        return { morphemes, bunsetsus };
+    });
+}
+function addJdepp(raw, morphemes) {
+    return __awaiter(this, void 0, void 0, function* () {
+        let jdeppRaw = yield jdepp.invokeJdepp(raw);
+        let jdeppSplit = jdepp.parseJdepp('', jdeppRaw);
+        let bunsetsus = [];
+        {
+            let added = 0;
+            for (let bunsetsu of jdeppSplit) {
+                // -1 because each `bunsetsu` array here will contain a header before the morphemes
+                bunsetsus.push(morphemes.slice(added, added + bunsetsu.length - 1));
+                added += bunsetsu.length - 1;
+            }
+        }
+        return bunsetsus;
+    });
+}
+const bunsetsuToString = (morphemes) => morphemes.map(m => m.literal).join('');
+function lineToEbisu(line) {
+    const ebisuRegexp = new RegExp('^\\s*' + ebisuInit);
+    const nonwsRegexp = /\S+/;
+    let res = line.match(ebisuRegexp);
+    if (!res) {
+        return null;
+    }
+    let withoutInit = line.slice(res[0].length + (res.index || 0));
+    res = withoutInit.match(nonwsRegexp);
+    if (!res) {
+        return null;
+    }
+    let name = res[0];
+    let withoutCruft = withoutInit.slice(res[0].length + (res.index || 0));
+    let ebisu = ebisu_1.Ebisu.fromString(withoutCruft.trim());
+    return { name, ebisu };
+}
+function last(v) { return v[v.length - 1]; }
 function textToBlocks(text) {
     let content = [];
     const headerRegexp = /(#+\s+◊)/;
@@ -486,6 +495,9 @@ function verifyAll(content) {
     });
 }
 exports.verifyAll = verifyAll;
+/*
+Main command-line app (prints updated (parsed) Markdown)
+*/
 const ensureFinalNewline = (s) => s.endsWith('\n') ? s : s + '\n';
 exports.contentToString = (content) => ensureFinalNewline(content.map(o => (o instanceof Quizzable ? o.toString() : o.join('\n'))).join('\n'));
 const USAGE = `USAGE:
