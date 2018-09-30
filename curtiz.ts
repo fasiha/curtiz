@@ -121,7 +121,7 @@ if (require.main === module) {
 
       if (finalQuizzable instanceof SentenceBlock) {
         let contexts: (string|null)[] = [];
-        let clozes: string[] = [];
+        let clozes: string[][] = [];
         try {
           let ret = finalQuiz.preQuiz();
           contexts = ret.contexts;

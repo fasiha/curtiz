@@ -2,7 +2,7 @@ import {Ebisu} from './ebisu';
 import * as jdepp from './jdepp';
 import {kata2hira} from './kana';
 import {goodMorphemePredicate, invokeMecab, maybeMorphemesToMorphemes, Morpheme, parseMecab} from './mecabUnidic';
-import {argmin, enumerate, filterRight, flatten, hasKanji} from './utils';
+import {argmin, enumerate, fillHoles, filterRight, flatten, hasKanji} from './utils';
 
 const DEFAULT_HALFLIFE_HOURS = 0.25;
 const ebisuVersion = '1';
@@ -13,34 +13,53 @@ Quiz classes (within a Quizzable, defined below)
 */
 export abstract class Quiz {
   ebisu?: Ebisu;
-  abstract preQuiz(): {contexts: (string|null)[], clozes: string[]};
+  abstract preQuiz(): Cloze;
   abstract toString(): string|null;
 };
 
+/**
+ * `N`-long `contexts` will have `C` `null`s and `N-C` non-null strings. The `null`s represent blanks.
+ * Each element of `C`-long `clozes` is a string array of at least one string that is acceptable for that blank.
+ * Example:
+ * `{contexts: ['hello ', null], clozes: [['world', 'everyone', 'down there']]}`
+ */
+type Cloze = {
+  contexts: (string|null)[],
+  clozes: string[][]
+};
 export class QuizCloze extends Quiz {
   static init = '- ◊cloze ';
-  cloze: string;
+  fieldSep = '//';
+  acceptables: string[];
   sentence: SentenceBlock;
-  constructor(sentence: SentenceBlock, particle?: string, line?: string, ebisu?: Ebisu) {
+  cloze: Cloze;
+  constructor(sentence: SentenceBlock, acceptables?: string[], line?: string, ebisu?: Ebisu) {
     super();
     this.sentence = sentence;
     if (ebisu) { this.ebisu = ebisu; }
-    if (particle) {
-      this.cloze = particle;
+    if (acceptables && acceptables.length > 0) {
+      this.acceptables = acceptables.slice();
     } else if (line) {
       let idx = line.indexOf(QuizCloze.init);
       if (idx < 0) { throw new Error('cannot find QuizCloze init'); }
-      this.cloze = line.slice(idx + QuizCloze.init.length).trim();
+      this.acceptables = line.slice(idx + QuizCloze.init.length).split(this.fieldSep).map(s => s.trim());
     } else {
-      throw new Error('need particle or line')
+      throw new Error('need `acceptables` or `line`');
     }
+    let possibleClozes =
+        this.acceptables.map(cloze => extractClozed(this.sentence.sentence + ` (${this.sentence.translation})`, cloze));
+    let primaryClozeIdx = possibleClozes.findIndex(x => !!x);
+    let primaryCloze = possibleClozes[primaryClozeIdx];
+    if (!primaryCloze) { throw new Error('None of these clozes were found: ' + line) }
+    let alsoAcceptable =
+        this.acceptables.map((s, idx) => idx === primaryClozeIdx ? null : s).filter(s => !!s) as string[];
+    primaryCloze.clozes[0].push(...alsoAcceptable);
+    this.cloze = primaryCloze;
   }
-  preQuiz(): {contexts: (string|null)[], clozes: string[]} {
-    let [contexts, clozes] = extractClozed(this.sentence.sentence + ` (${this.sentence.translation})`, this.cloze);
-    return {contexts, clozes};
-  }
+  preQuiz(): Cloze { return this.cloze; }
   toString(): string|null {
-    return `${QuizCloze.init}${this.cloze}` + (this.ebisu ? `\n  ${ebisuInit}_ ${this.ebisu.toString()}` : ``);
+    return `${QuizCloze.init}${this.acceptables.join(this.fieldSep)}` +
+           (this.ebisu ? `\n  ${ebisuInit}_ ${this.ebisu.toString()}` : ``);
   }
 };
 export class QuizRelated extends Quiz {
@@ -58,9 +77,11 @@ export class QuizRelated extends Quiz {
     if (!(split.length === 2 || split.length === 3)) { throw new Error('2- or 3-item related not found'); }
     [this.reading, this.translation, this.written] = split.map(s => s.trim());
   }
-  preQuiz(): {contexts: (string|null)[], clozes: string[]} {
-    if (this.written) { return {contexts: [`${this.written}: enter reading: `, null], clozes: [this.reading]}; }
-    return {contexts: [`${this.translation}: enter reading: `, null], clozes: [this.reading]};
+  preQuiz(): Cloze {
+    if (this.written) {
+      return {contexts: [`${this.written}: enter reading: `, null], clozes: [[this.reading, this.written]]};
+    }
+    return {contexts: [`${this.translation}: enter reading: `, null], clozes: [[this.reading]]};
   }
   toString(): string|null {
     return `${QuizRelated.init}${
@@ -76,8 +97,11 @@ export class QuizReading extends Quiz {
     this.ebisu = ebisu;
     this.sentence = sentence;
   }
-  preQuiz(): {contexts: (string|null)[], clozes: string[]} {
-    return { contexts: [`${this.sentence.sentence}: enter reading: `, null], clozes: [this.sentence.reading] }
+  preQuiz(): Cloze {
+    return {
+      contexts: [`${this.sentence.sentence}: enter reading: `, null],
+          clozes: [[this.sentence.reading, this.sentence.sentence]]
+    }
   }
   toString(): string|null {
     return this.ebisu ? `${ebisuInit}${QuizReading.ebisuName} ${this.ebisu.toString()}` : null;
@@ -93,7 +117,7 @@ export abstract class Quizzable {
   abstract bullets: Bullet[];
   abstract predict(now?: Date): Predicted|undefined;
   abstract learn(now?: Date, scale?: number): void;
-  abstract postQuiz(quizCompleted: Quiz, clozes: string[], results: string[], now?: Date, scale?: number): boolean;
+  abstract postQuiz(quizCompleted: Quiz, clozes: string[][], results: string[], now?: Date, scale?: number): boolean;
   abstract learned(): boolean;
   abstract numUnlearned(): number;
 }
@@ -179,8 +203,8 @@ export class SentenceBlock extends Quizzable {
       }
     }
   }
-  postQuiz(quizCompleted: Quiz, clozes: string[], results: string[], now?: Date, scale: number = 1): boolean {
-    const correct = clozes.every((cloze, cidx) => (cloze === results[cidx]) || (cloze === kata2hira(results[cidx])));
+  postQuiz(quizCompleted: Quiz, clozes: string[][], results: string[], now?: Date, scale: number = 1): boolean {
+    const correct = results.every((r, idx) => clozes[idx].indexOf(r) >= 0 || clozes[idx].indexOf(kata2hira(r)) >= 0);
     let epoch = now ? now.valueOf() : Date.now();
     for (let quiz of this.bullets) {
       if (quiz instanceof Quiz) {
@@ -224,10 +248,7 @@ export class SentenceBlock extends Quizzable {
     }
   }
   identifyQuizItems(bunsetsus: Morpheme[][]) {
-    let clozes: Set<string> = new Set([]);
-    const particlePredicate = (p: Morpheme) => p.partOfSpeech[0].startsWith('particle') && p.partOfSpeech.length > 1 &&
-                                               !p.partOfSpeech[1].startsWith('phrase_final');
-    {
+    { // Guess at `◊related??` blocks
       const morphemes = flatten(bunsetsus);
       if (morphemes.length > 1) {
         let relatedMaybeInit = QuizRelated.init.trimRight() + '?? ';
@@ -241,16 +262,22 @@ export class SentenceBlock extends Quizzable {
         }
       }
     }
+
+    // Find clozes: particles and conjugated verb/adjective phrases
+    let literalClozes: Map<string, Morpheme[]> = new Map([]);
+    const particlePredicate = (p: Morpheme) => p.partOfSpeech[0].startsWith('particle') && p.partOfSpeech.length > 1 &&
+                                               !p.partOfSpeech[1].startsWith('phrase_final');
     for (let [bidx, bunsetsu] of enumerate(bunsetsus)) {
       let first = bunsetsu[0];
       if (!first) { continue; }
       const pos0 = first.partOfSpeech[0];
       if (bunsetsu.length > 1 && (pos0.startsWith('verb') || pos0.endsWith('_verb') || pos0.startsWith('adject'))) {
         let ignoreRight = filterRight(bunsetsu, m => !goodMorphemePredicate(m));
-        let cloze = bunsetsuToString(ignoreRight.length === 0 ? bunsetsu : bunsetsu.slice(0, -ignoreRight.length));
+        let goodBunsetsu = ignoreRight.length === 0 ? bunsetsu : bunsetsu.slice(0, -ignoreRight.length);
+        let cloze = bunsetsuToString(goodBunsetsu);
         let left = bunsetsus.slice(0, bidx).map(bunsetsuToString).join('');
         let right = bunsetsuToString(ignoreRight) + bunsetsus.slice(bidx + 1).map(bunsetsuToString).join('');
-        clozes.add(generateContextClozed(left, cloze, right));
+        literalClozes.set(generateContextClozed(left, cloze, right), goodBunsetsu);
       } else {
         // only add particles if they're NOT inside conjugated phrases
         for (let [pidx, particle] of enumerate(bunsetsu)) {
@@ -259,14 +286,19 @@ export class SentenceBlock extends Quizzable {
                 bunsetsus.slice(0, bidx).map(bunsetsuToString).join('') + bunsetsuToString(bunsetsu.slice(0, pidx));
             let right =
                 bunsetsuToString(bunsetsu.slice(pidx + 1)) + bunsetsus.slice(bidx + 1).map(bunsetsuToString).join('');
-            clozes.add(generateContextClozed(left, particle.literal, right));
+            literalClozes.set(generateContextClozed(left, particle.literal, right), [particle]);
           }
         }
       }
     }
-    let existingClozes = new Set(this.bullets.filter(b => b instanceof QuizCloze).map(q => (q as QuizCloze).cloze));
-    for (let p of clozes) {
-      if (!existingClozes.has(p)) { this.bullets.push(new QuizCloze(this, p)); }
+    let existingClozes = new Set(
+        flatten(flatten(this.bullets.filter(b => b instanceof QuizCloze).map(q => (q as QuizCloze).cloze.clozes))));
+    for (let [literal, bunsetsu] of literalClozes) {
+      if (!existingClozes.has(literal)) {
+        let acceptable = [literal];
+        if (hasKanji(literal)) { acceptable.push(kata2hira(bunsetsu.map(m => m.pronunciation).join(''))) }
+        this.bullets.push(new QuizCloze(this, acceptable));
+      }
     }
   }
   toString(): string {
@@ -330,7 +362,7 @@ function generateContextClozed(left: string, cloze: string, right: string): stri
  * @param haystack Long string
  * @param needleMaybeContext
  */
-function extractClozed(haystack: string, needleMaybeContext: string): [(string | null)[], string[]] {
+function extractClozed(haystack: string, needleMaybeContext: string): Cloze|null {
   let re = /\[([^\]]+)\]/;
   let bracketMatch = needleMaybeContext.match(re);
   if (bracketMatch) {
@@ -342,11 +374,11 @@ function extractClozed(haystack: string, needleMaybeContext: string): [(string |
 
     let fullRe = new RegExp(leftContext + cloze + rightContext, 'g');
     let checkContext = fullRe.exec(haystack);
-    if (!checkContext) { throw new Error('Needle not found in haystack'); }
+    if (!checkContext) { return null; }
     const left = haystack.slice(0, checkContext.index + leftContext.length);
     const right = haystack.slice(checkContext.index + checkContext[0].length - rightContext.length);
     if (fullRe.exec(haystack)) { throw new Error('Insufficient cloze context'); }
-    return [[left, null, right], [cloze]];
+    return {contexts: [left, null, right], clozes: [[cloze]]};
   }
   let cloze = needleMaybeContext;
   let clozeRe = new RegExp(cloze, 'g');
@@ -355,9 +387,9 @@ function extractClozed(haystack: string, needleMaybeContext: string): [(string |
     let left = haystack.slice(0, clozeHit.index);
     let right = haystack.slice(clozeHit.index + cloze.length);
     if (clozeRe.exec(haystack)) { throw new Error('Cloze context required'); }
-    return [[left, null, right], [cloze]];
+    return {contexts: [left, null, right], clozes: [[cloze]]};
   }
-  throw new Error('Could not find cloze');
+  return null;
 }
 
 const staggeredDate = (start: number, maxMilliseconds: number = 750) =>
