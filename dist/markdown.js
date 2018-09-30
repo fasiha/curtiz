@@ -201,7 +201,7 @@ class SentenceBlock extends Quizzable {
         let epoch = now ? now.valueOf() : Date.now();
         for (let b of this.bullets) {
             if (b instanceof Quiz && !b.ebisu) {
-                b.ebisu = ebisu_1.Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, (b instanceof QuizReading ? new Date(epoch) : staggeredDate(epoch)));
+                b.ebisu = ebisu_1.Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, (b instanceof QuizReading ? new Date(epoch) : staggeredDate(10 + epoch)));
             }
         }
     }
@@ -218,7 +218,7 @@ class SentenceBlock extends Quizzable {
                 }
                 else {
                     if (quiz.ebisu) {
-                        quiz.ebisu.passiveUpdate(staggeredDate(epoch));
+                        quiz.ebisu.passiveUpdate(staggeredDate(10 + epoch));
                     }
                     else {
                         quiz.ebisu = ebisu_1.Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, staggeredDate(epoch));

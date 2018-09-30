@@ -199,7 +199,7 @@ export class SentenceBlock extends Quizzable {
     for (let b of this.bullets) {
       if (b instanceof Quiz && !b.ebisu) {
         b.ebisu = Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined,
-                                      (b instanceof QuizReading ? new Date(epoch) : staggeredDate(epoch)));
+                                      (b instanceof QuizReading ? new Date(epoch) : staggeredDate(10 + epoch)));
       }
     }
   }
@@ -213,7 +213,7 @@ export class SentenceBlock extends Quizzable {
           quiz.ebisu.update(correct, now);
         } else {
           if (quiz.ebisu) {
-            quiz.ebisu.passiveUpdate(staggeredDate(epoch));
+            quiz.ebisu.passiveUpdate(staggeredDate(10 + epoch));
           } else {
             quiz.ebisu = Ebisu.createDefault(scale * DEFAULT_HALFLIFE_HOURS, undefined, staggeredDate(epoch));
           }
