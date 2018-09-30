@@ -81,7 +81,9 @@ You can ask Curtiz to `quiz` you on what you just learned by running the followi
 ```
 $ node curtiz.js quiz README.md
 ```
-If you hit Control-C, Curtiz will exit without doing anything, but otherwise, it will update the Ebisu numbers based on whether or not you successfully typed in "かいしゃ" as the reading for "会社". (Note it doesn't show you the translation. I'm open to changing this.)
+If you hit Control-C, Curtiz will exit without doing anything, but otherwise, it will update the Ebisu numbers based on whether or not you successfully typed in "かいしゃ" (or "カイシャ", i.e., the same thing but in katakana, Curtiz will always convert katakana input to hiragana) as the reading for "会社".
+
+(Note it doesn't show you the translation in the quiz. Let me know if you really want the translation.)
 
 ## Advanced usage: cloze-deletion `◊cloze` and normal flashcards `◊related`
 
@@ -90,15 +92,17 @@ Ebisu can also help you learn and practice longer sentences. Here's an example t
 #### ◊sent やまだはにんじゃにほめられた :: Yamada was praised by the ninja. :: 山田はにんじゃにほめられた。
 - ◊related ほめる :: to praise :: 褒める
 - ◊related やまだ :: (proper name) :: 山田
-- ◊cloze められた
 - ◊cloze は
 - ◊cloze ゃ[に]ほ
+- ◊cloze ほめられた // 褒められた
 
 If a Curtiz header is followed immediately by a list of lozenge keywords, as above, Curtiz will understand that you want to tell it more about this sentence, and will have more ways to quiz your knowledge. The two extra kinds of information are:
 - **related** words, via `◊related`, following the same format of (1) reading, (2) translation, (3) an *optional* written form. I use these to practice kanji→reading (or translation→reading, in the absence of a written form) of words that are related to the sentence, which is close to "normal" flashcards, in that I practice a single word.
-- **Fill-in-the-blanks** via `◊cloze`, followed by the text in the blank, I use with *particles* and *conjugated phrases* (verbs and adjectives). Curtiz will also give you the sentence's translation, because that usually contains crucial information for particles and conjugations.
+- **Fill-in-the-blanks** via `◊cloze`, followed by the text belonging the blank, I use with *particles* and *conjugated phrases* (verbs and adjectives). Curtiz will also give you the sentence's translation, because that usually contains crucial information for particles and conjugations.
 
-If there is ambiguity about which part of the sentence represents the cloze (which is the fancy word for [fill-in-the-blank](https://en.wikipedia.org/wiki/Cloze_test)), you can provide some context, as in the last line above: "◊cloze ゃ[に]ほ" means "the particle is に, specifically the に in the sentence flanked by ゃ and ほ, and not the に in にんじゃ". Curtiz will warn you if these clozed phrases are ambiguous, so don't worry.
+If there is ambiguity about which part of the sentence represents the cloze (which is the fancy word for [fill-in-the-blank](https://en.wikipedia.org/wiki/Cloze_test)), you can provide some context, as in the last line above: `◊cloze ゃ[に]ほ` means "the particle is に, specifically the に in the sentence flanked by ゃ and ほ, and not the に in にんじゃ". Curtiz will warn you if these clozed phrases are ambiguous, so don't worry.
+
+Furthermore, note that you can specify more than one correct answer for a given cloze: in the above, Curtiz will accept "ほめられた", or its katakana version, *or* "褒められた", with kanji, in case that's easier to produce with keyboard IMEs.
 
 So if you run `node curtiz.js learn README.md` again, Curtiz will invite you to learn the above sentence.
 
@@ -126,11 +130,11 @@ After you the first `quiz` or `learn` **or** after `node curtiz.js parse README.
   - ◊related?? ふる :: ? :: 降る
   - ◊related?? はじめる :: ? :: 始める
   - ◊cloze が
-  - ◊cloze 降り始めました
+- ◊cloze 降り始めました // ふりはじめました
 
 Curtiz has analyzed the sentence and found vocabulary using kanji as `◊related??` tags. N.B., the `??` prevents this from being parsed as a true `◊related` flashcard! If you'd like Curtiz to quiz you on these related cards, going from kanji to reading, remove the `??` to make these `◊related` flashcards.
 
-Curtiz has also added particles and conjugated verbal phrases as `◊cloze` flashcards, which will be quizzed via fill-in-the-blanks.
+Curtiz has also added particles and conjugated verbal phrases as `◊cloze` flashcards, which will be quizzed via fill-in-the-blanks. (For clozes with kanji, it has added the reading (it's best guess, at least) as a valid answer to the cloze.)
 
 I recommend checking these because these automatic tools can make mistakes. Don't worry, it won't overwrite any clozes that you've already learned.
 
@@ -147,6 +151,6 @@ After Curtiz processes this file, the above will have the following bullets unde
 - ◊cloze particle を
 
 ## Name
-The name comes from Arakawa Hiromi's legendary manga, *Fullmetal Alchemist*, where Curtis Izumi is the powerful alchemist who took in the Elric brothers and taught them alchemy. The artist has said that this is her favorite scene:
+The name comes from Arakawa Hiromi's legendary manga, *Fullmetal Alchemist*, where Curtis Izumi is the powerful alchemist who took in the Elric brothers and taught them alchemy. The artist, Arakawa-sensei, has said that this memorable scene featuring Curtis is her favorite scene in the manga!:
 
 ![Curtis Izumi, from Fullmetal Alchemist manga, by Hiromi Arakawa. "I am a housewife!"](izumi.jpg)
