@@ -100,9 +100,9 @@ If a Curtiz header is followed immediately by a list of lozenge keywords, as abo
 - **related** words, via `◊related`, following the same format of (1) reading, (2) translation, (3) an *optional* written form. I use these to practice kanji→reading (or translation→reading, in the absence of a written form) of words that are related to the sentence, which is close to "normal" flashcards, in that I practice a single word.
 - **Fill-in-the-blanks** via `◊cloze`, followed by the text belonging the blank, I use with *particles* and *conjugated phrases* (verbs and adjectives). Curtiz will also give you the sentence's translation, because that usually contains crucial information for particles and conjugations.
 
-If there is ambiguity about which part of the sentence represents the cloze (which is the fancy word for [fill-in-the-blank](https://en.wikipedia.org/wiki/Cloze_test)), you can provide some context, as in the last line above: `◊cloze ゃ[に]ほ` means "the particle is に, specifically the に in the sentence flanked by ゃ and ほ, and not the に in にんじゃ". Curtiz will warn you if these clozed phrases are ambiguous, so don't worry.
+If there is ambiguity about which part of the sentence represents the cloze (which is the fancy word for [fill-in-the-blank](https://en.wikipedia.org/wiki/Cloze_test)), you can provide some context, as in the penultimate line above: `◊cloze ゃ[に]ほ` means "the particle is に, specifically the に in the sentence flanked by ゃ and ほ, and not the に in にんじゃ". Curtiz will warn you if these clozed phrases are ambiguous, so don't worry.
 
-Furthermore, note that you can specify more than one correct answer for a given cloze: in the above, Curtiz will accept "ほめられた", or its katakana version, *or* "褒められた", with kanji, in case that's easier to produce with keyboard IMEs.
+Furthermore, note that you can specify more than one correct answer for a given cloze: for a quiz of the last line above, Curtiz will accept "ほめられた", *or* its katakana version, *or* "褒められた", with kanji, in case that's easier to produce with keyboard IMEs.
 
 So if you run `node curtiz.js learn README.md` again, Curtiz will invite you to learn the above sentence.
 
