@@ -3,6 +3,7 @@ import test from 'tape';
 import {Ebisu} from '../ebisu';
 import * as md from '../markdown';
 import * as utils from '../utils';
+import {flatten} from '../utils';
 
 test('Basic sentence block works', async t => {
   let raw = `# ◊sent :: (It's/I'm) Yamada :: 山田です。`;
@@ -23,21 +24,36 @@ test('More complex parsing', async t => {
   t.assert(s instanceof md.SentenceBlock);
   await s.verify();
   t.equal(s.reading, 'やまだはせんせいにほめられた');
-  t.deepEqual(s.bullets.filter(b => b instanceof md.QuizCloze).map(c => (c as md.QuizCloze).cloze).sort(),
-              'に,は,ほめられた'.split(',').sort());
+  let clozes: string[] =
+      flatten(s.bullets.filter(b => b instanceof md.QuizCloze).map(c => flatten((c as md.QuizCloze).cloze.clozes)))
+          .sort();
+  t.deepEqual(clozes, 'に,は,ほめられた'.split(',').sort());
   t.end();
 });
 
 test('Context-cloze complex parsing', async t => {
-  let raw = `# ◊sent :: The carrot praised the carrot. :: にんじんは先生にほめられた。`;
+  let raw = `# ◊sent :: The teacher praised the carrot. :: にんじんは先生にほめられた。`;
   let content = md.textToBlocks(raw);
   let s: md.SentenceBlock = content[0] as md.SentenceBlock;
   t.assert(s instanceof md.SentenceBlock);
 
   await s.verify();
   t.equal(s.reading, 'にんじんはせんせいにほめられた');
-  t.deepEqual(s.bullets.filter(b => b instanceof md.QuizCloze).map(c => (c as md.QuizCloze).cloze).sort(),
-              'は,生[に]ほ,ほめられた'.split(',').sort());
+  let clozes: string[] =
+      flatten(s.bullets.filter(b => b instanceof md.QuizCloze).map(c => (c as md.QuizCloze).acceptables)).sort();
+  t.deepEqual(clozes, 'は,生[に]ほ,ほめられた'.split(',').sort());
+  t.end();
+});
+
+test('Multiple acceptable clozes', async t => {
+  let raw = `# ◊sent :: The teacher praised the carrot. :: にんじんは先生に褒められた。`; // use kanji here: 褒める
+  let content = md.textToBlocks(raw);
+  let s: md.SentenceBlock = content[0] as md.SentenceBlock;
+  await s.verify();
+  t.equal(s.reading, 'にんじんはせんせいにほめられた'); // same as above
+  let clozes: string[] =
+      flatten(s.bullets.filter(b => b instanceof md.QuizCloze).map(c => (c as md.QuizCloze).acceptables)).sort();
+  t.deepEqual(clozes, 'は,生[に]褒,ほめられた,褒められた'.split(',').sort());
   t.end();
 });
 
@@ -56,7 +72,8 @@ test('Learning and quizzing', async t => {
     let clozeStruct = quiz.preQuiz();
     t.equal(clozeStruct.contexts.filter(s => !s).length, clozeStruct.clozes.length);
     if (quiz instanceof md.QuizCloze) {
-      t.ok(utils.fillHoles(clozeStruct.contexts, clozeStruct.clozes).join('').includes(s.sentence));
+      t.ok(
+          clozeStruct.clozes.some(cloze => utils.fillHoles(clozeStruct.contexts, cloze).join('').includes(s.sentence)));
     }
   }
   t.end();
@@ -96,12 +113,11 @@ test('Kanji in conjugated phrase will be needed during quiz', async t => {
 
   let clozes = s.bullets.filter(b => b instanceof md.QuizCloze) as md.QuizCloze[];
   t.is(clozes.length, 3);
-  let quiz = clozes.filter(q => q.cloze.endsWith('れた'))[0];
-  t.is(quiz.cloze, '褒められた');
+  let quiz = clozes.filter(q => q.cloze.clozes[0][0].endsWith('れた'))[0];
+  t.deepEqual(quiz.cloze.clozes[0].slice().sort(), '褒められた,ほめられた'.split(',').sort());
   let clozeStruct = quiz.preQuiz();
-  t.equal(clozeStruct.clozes[0], '褒められた');
+  t.deepEqual(clozeStruct.clozes[0].slice().sort(), '褒められた,ほめられた'.split(',').sort());
   t.end();
-  // TODO: allow clozes to be sets/arrays, multiple readings
 });
 
 test('What happens with multiple same particle? Each different particle is tracked. 😎', async t => {
@@ -116,7 +132,7 @@ test('What happens with multiple same particle? Each different particle is track
 
   for (let quiz of quizs) {
     let clozeStruct = quiz.preQuiz();
-    t.ok(utils.fillHoles(clozeStruct.contexts, clozeStruct.clozes).join('').includes(s.sentence));
+    t.ok(clozeStruct.clozes.some(cloze => utils.fillHoles(clozeStruct.contexts, cloze).join('').includes(s.sentence)));
   }
   t.end();
 });
@@ -195,8 +211,6 @@ test('Throw when no kanji', async t => {
   t.throws(() => md.textToBlocks(raw))
   t.end();
 });
-// TODO 2: check if multiple blocks declare the same `◊related`. At least warn. Ideally, quizzing one of these ◊relateds
-// updates all their Ebisus.
 
 test('quizzing a partially-learned block learns them all', async t => {
   let now = new Date();
@@ -214,8 +228,31 @@ test('quizzing a partially-learned block learns them all', async t => {
   if (!pred) { throw new Error('typescript/tape pacification'); }
 
   t.ok(s.bullets.filter(b => b instanceof md.Quiz).some(q => !((q as md.Quiz).ebisu)));
-  s.postQuiz(pred.quiz, ['x'], ['y'], now);
+  s.postQuiz(pred.quiz, [['x']], ['y'], now);
   t.ok(pred.quiz.ebisu);
   t.ok(s.bullets.filter(b => b instanceof md.Quiz).every(q => !!((q as md.Quiz).ebisu)));
   t.end();
 });
+
+test('throw when cloze not available', t => {
+  let raw = `# ◊sent まで　:: till :: まで
+- ◊cloze ___`;
+  t.throws(() => md.textToBlocks(raw))
+  t.end();
+});
+
+test('multiple clozes possible', t => {
+  let raw = `# ◊sent abc　:: ?? :: abc
+  - ◊cloze a // A // å `;
+  let content = md.textToBlocks(raw);
+  let s: md.SentenceBlock = content[0] as md.SentenceBlock;
+  s.learn();
+  let q = s.bullets.filter(q => q instanceof md.QuizCloze)[0] as md.QuizCloze;
+  t.deepEqual(q.acceptables.slice().sort(), 'a,A,å'.split(',').sort())
+  t.deepEqual(q.cloze.clozes[0].slice().sort(), 'a,A,å'.split(',').sort())
+  t.ok(s.postQuiz(q, q.cloze.clozes, ['a']));    // correct
+  t.ok(s.postQuiz(q, q.cloze.clozes, ['A']));    // correct
+  t.ok(s.postQuiz(q, q.cloze.clozes, ['å']));    // correct
+  t.ok(!s.postQuiz(q, q.cloze.clozes, ['___'])); // not correct
+  t.end();
+})

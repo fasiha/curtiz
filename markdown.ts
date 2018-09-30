@@ -293,10 +293,12 @@ export class SentenceBlock extends Quizzable {
     }
     let existingClozes = new Set(
         flatten(flatten(this.bullets.filter(b => b instanceof QuizCloze).map(q => (q as QuizCloze).cloze.clozes))));
-    for (let [literal, bunsetsu] of literalClozes) {
-      if (!existingClozes.has(literal)) {
-        let acceptable = [literal];
-        if (hasKanji(literal)) { acceptable.push(kata2hira(bunsetsu.map(m => m.pronunciation).join(''))) }
+    for (let [cloze, bunsetsu] of literalClozes) {
+      if (!existingClozes.has(cloze)) {
+        let acceptable = [cloze];
+        if (hasKanji(bunsetsuToString(bunsetsu))) {
+          acceptable.push(kata2hira(bunsetsu.map(m => m.pronunciation).join('')))
+        }
         this.bullets.push(new QuizCloze(this, acceptable));
       }
     }
@@ -386,7 +388,10 @@ function extractClozed(haystack: string, needleMaybeContext: string): Cloze|null
   if (clozeHit) {
     let left = haystack.slice(0, clozeHit.index);
     let right = haystack.slice(clozeHit.index + cloze.length);
-    if (clozeRe.exec(haystack)) { throw new Error('Cloze context required'); }
+    if (clozeRe.exec(haystack)) {
+      console.error('haystack', haystack, 'needle', needleMaybeContext)
+      throw new Error('Cloze context required');
+    }
     return {contexts: [left, null, right], clozes: [[cloze]]};
   }
   return null;
