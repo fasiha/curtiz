@@ -63,7 +63,7 @@ class QuizCloze extends Quiz {
     }
     preQuiz() { return this.cloze; }
     toString() {
-        return `${QuizCloze.init}${this.acceptables.join(this.fieldSep)}` +
+        return `${QuizCloze.init}${this.acceptables.join(' ' + this.fieldSep + ' ')}` +
             (this.ebisu ? `\n  ${ebisuInit}_ ${this.ebisu.toString()}` : ``);
     }
 }
