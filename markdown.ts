@@ -146,7 +146,9 @@ export class SentenceBlock extends Quizzable {
       if (lozengeIdx < 0) { throw new Error('◊ not found'); }
       const line = block[0].slice(lozengeIdx + SentenceBlock.init.length);
       const pieces = line.split(SentenceBlock.fieldSep);
-      if (pieces.length !== 3) { throw new Error('Sentence needs (1) reading, (2) translation, and (3) printed.'); }
+      if (pieces.length !== 3) {
+        throw new Error('Sentence needs (1) reading, (2) translation, and (3) printed.' + block.join('\n'));
+      }
       this.sentence = pieces[2].trim();
       this.translation = pieces[1].trim();
       this.reading = pieces[0].trim();
