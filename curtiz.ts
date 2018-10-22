@@ -49,6 +49,94 @@ async function cloze(clozes: Array<string|null>): Promise<string[]> {
   return responses;
 }
 
+function findBestQuiz(learned: Quizzable[]) {
+  let finalQuiz: Quiz|undefined;
+  let finalQuizzable: Quizzable|undefined;
+  let finalPrediction: Predicted|undefined;
+  let predictions = learned.map(q => q.predict()).filter(x => !!x) as Predicted[];
+  let minIdx = argmin(predictions, p => p.prob);
+  if (minIdx >= 0) {
+    [finalQuiz, finalQuizzable, finalPrediction] = [predictions[minIdx].quiz, learned[minIdx], predictions[minIdx]];
+    if (learned.length > 5) {
+      // If enough items have been learned, let's add some randomization. We'll still ask a quiz with low
+      // recall probability, but shuffling low-probability quizzes is nice to avoid quizzing in the same
+      // order as learned.
+      let minProb = predictions[minIdx].prob;
+      let maxProb = [.001, .01, .1, .2, .3, .4, .5].find(x => x > minProb);
+      if (maxProb !== undefined) {
+        let max = maxProb;
+        let groupPredictionsQuizzables =
+            predictions.map((p, i) => [p, learned[i]] as [Predicted, Quizzable]).filter(([p, q]) => p.prob <= max);
+        if (groupPredictionsQuizzables.length > 0) {
+          let randIdx = Math.floor(Math.random() * groupPredictionsQuizzables.length);
+          [finalQuiz, finalQuizzable, finalPrediction] = [
+            groupPredictionsQuizzables[randIdx][0].quiz,
+            groupPredictionsQuizzables[randIdx][1],
+            groupPredictionsQuizzables[randIdx][0],
+          ];
+        }
+      }
+    }
+  }
+  return {finalQuiz, finalQuizzable, finalPrediction};
+}
+
+async function administerQuiz(finalQuiz: Quiz, finalQuizzable: Quizzable, finalPrediction: Predicted) {
+  if (finalQuizzable instanceof SentenceBlock) {
+    let contexts: (string|null)[] = [];
+    let clozes: string[][] = [];
+    try {
+      let ret = finalQuiz.preQuiz();
+      contexts = ret.contexts;
+      clozes = ret.clozes;
+    } catch (e) {
+      console.error('Critical error when preparing a quiz, for item:')
+      console.error(finalQuizzable.toString());
+      process.exit(1);
+      return;
+    }
+    let responses = await cloze(contexts);
+
+    let scale: number = 1;
+    if (finalPrediction && finalPrediction.unlearned > 0) {
+      let n = finalPrediction.unlearned;
+      console.log(`Learn the following ${n} new sub-fact${n > 1 ? 's' : ''}:`);
+      let print = finalQuizzable.bullets.filter(b => b instanceof Quiz && !b.ebisu).map(q => q.toString()).join('\n');
+      console.log(print)
+      let entry = await cliPrompt(`Enter to indicate you have learned ${n > 1 ? 'these' : 'this'},` +
+                                  ` or a positive number to scale the initial half-life. > `);
+      if (entry && entry.length > 0 && (scale = parseFloat(entry))) {
+        console.log(`${n} sub-fact${n > 1 ? 's' : ''} initial half-life will be ${scale}× default.`);
+      }
+    }
+
+    let now: Date = new Date();
+    let correct = finalQuizzable.postQuiz(finalQuiz, clozes, responses, now, scale);
+    let summary = finalQuizzable.header;
+    summary = summary.slice(summary.indexOf(SentenceBlock.init) + SentenceBlock.init.length);
+    if (correct) {
+      console.log('💥 🔥 🎆 🎇 👏 🙌 👍 👌! ' + summary);
+    } else {
+      console.log('😭 🙅‍♀️ 🙅‍♂️ 👎 🤬. Expected answer: ' + clozes.join(' | '));
+      console.log(summary);
+    }
+  } else {
+    throw new Error('Unhandled quiz type');
+  }
+}
+
+async function quiz(content: Content[]) {
+  let learned: Quizzable[] = content.filter(o => o instanceof Quizzable && o.learned()) as Quizzable[];
+  const {finalQuiz, finalQuizzable, finalPrediction} = findBestQuiz(learned);
+
+  if (!(finalQuiz && finalQuizzable && finalPrediction)) {
+    console.log('Nothing to review. Learn something and try again.')
+    process.exit(0);
+    return;
+  }
+  return administerQuiz(finalQuiz, finalQuizzable, finalPrediction);
+}
+
 if (require.main === module) {
   const promisify = require('util').promisify;
   const readFile = promisify(require('fs').readFile);
@@ -80,92 +168,17 @@ if (require.main === module) {
     // Parses Markdown and if necessary invokes MeCab/Jdepp
     await verifyAll(content);
 
-    let learned: Quizzable[] = content.filter(o => o instanceof Quizzable && o.learned()) as Quizzable[];
-
     let mode = process.argv[2];
     if (mode === 'quiz') {
-      let finalQuiz: Quiz|undefined;
-      let finalQuizzable: Quizzable|undefined;
-      let finalPrediction: Predicted|undefined;
-      let predictions = learned.map(q => q.predict()).filter(x => !!x) as Predicted[];
-      let minIdx = argmin(predictions, p => p.prob);
-      if (minIdx >= 0) {
-        [finalQuiz, finalQuizzable, finalPrediction] = [predictions[minIdx].quiz, learned[minIdx], predictions[minIdx]];
-        if (learned.length > 5) {
-          // If enough items have been learned, let's add some randomization. We'll still ask a quiz with low
-          // recall probability, but shuffling low-probability quizzes is nice to avoid quizzing in the same
-          // order as learned.
-          let minProb = predictions[minIdx].prob;
-          let maxProb = [.001, .01, .1, .2, .3, .4, .5].find(x => x > minProb);
-          if (maxProb !== undefined) {
-            let max = maxProb;
-            let groupPredictionsQuizzables =
-                predictions.map((p, i) => [p, learned[i]] as [Predicted, Quizzable]).filter(([p, q]) => p.prob <= max);
-            if (groupPredictionsQuizzables.length > 0) {
-              let randIdx = Math.floor(Math.random() * groupPredictionsQuizzables.length);
-              [finalQuiz, finalQuizzable, finalPrediction] = [
-                groupPredictionsQuizzables[randIdx][0].quiz,
-                groupPredictionsQuizzables[randIdx][1],
-                groupPredictionsQuizzables[randIdx][0],
-              ];
-            }
-          }
-        }
-      }
-
-      if (!(finalQuiz && finalQuizzable)) {
-        console.log('Nothing to review. Learn something and try again.')
-        process.exit(0);
-        return;
-      }
-
-      if (finalQuizzable instanceof SentenceBlock) {
-        let contexts: (string|null)[] = [];
-        let clozes: string[][] = [];
-        try {
-          let ret = finalQuiz.preQuiz();
-          contexts = ret.contexts;
-          clozes = ret.clozes;
-        } catch (e) {
-          console.error('Critical error when preparing a quiz, for item:')
-          console.error(finalQuizzable.toString());
-          process.exit(1);
-          return;
-        }
-        let responses = await cloze(contexts);
-
-        let scale: number = 1;
-        if (finalPrediction && finalPrediction.unlearned > 0) {
-          let n = finalPrediction.unlearned;
-          console.log(`Learn the following ${n} new sub-fact${n > 1 ? 's' : ''}:`);
-          let print =
-              finalQuizzable.bullets.filter(b => b instanceof Quiz && !b.ebisu).map(q => q.toString()).join('\n');
-          console.log(print)
-          let entry = await cliPrompt(`Enter to indicate you have learned ${n > 1 ? 'these' : 'this'},` +
-                                      ` or a positive number to scale the initial half-life. > `);
-          if (entry && entry.length > 0 && (scale = parseFloat(entry))) {
-            console.log(`${n} sub-fact${n > 1 ? 's' : ''} initial half-life will be ${scale}× default.`);
-          }
-        }
-
-        let now: Date = new Date();
-        let correct = finalQuizzable.postQuiz(finalQuiz, clozes, responses, now, scale);
-        let summary = finalQuizzable.header;
-        summary = summary.slice(summary.indexOf(SentenceBlock.init) + SentenceBlock.init.length);
-        if (correct) {
-          console.log('💥 🔥 🎆 🎇 👏 🙌 👍 👌! ' + summary);
-        } else {
-          console.log('😭 🙅‍♀️ 🙅‍♂️ 👎 🤬. Expected answer: ' + clozes.join(' | '));
-          console.log(summary);
-        }
-      } else {
-        throw new Error('Unhandled quiz type');
-      }
+      /////////
+      // Quiz
+      /////////
+      quiz(content);
       writer(contentToString(content));
     } else if (mode === 'learn') {
-      //
+      /////////
       // Learn
-      //
+      /////////
       let toLearn: Quizzable|undefined =
           content.find(o => o instanceof Quizzable && !o.learned()) as (Quizzable | undefined);
       if (!toLearn) {
@@ -192,6 +205,9 @@ if (require.main === module) {
 
       writer(contentToString(content));
     } else if (mode === 'ebisu') {
+      /////////
+      // Ebisu
+      /////////
       let now = new Date();
 
       // Half-life calculation
@@ -207,6 +223,7 @@ if (require.main === module) {
       }
 
       // Print
+      let learned: Quizzable[] = content.filter(o => o instanceof Quizzable && o.learned()) as Quizzable[];
       let sorted = flatten(learned.map(qz => qz.bullets.filter(b => b instanceof Quiz && !!b.ebisu)
                                                  .map(q => ({
                                                         str: qz.header + '|' + (q.toString() || '').split('\n')[0],
