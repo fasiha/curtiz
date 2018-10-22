@@ -2,22 +2,22 @@
 
 const USAGE = `USAGE:
 For a quiz:
-    $ node [this-script.js] quiz [markdown.md]
+    $ node [this-script.js] quiz [markdown.md [...markdowns.md]]
 For learning:
-    $ node [this-script.js] learn [markdown.md]
+    $ node [this-script.js] learn [markdown.md [...markdowns.md]]
 To just automatically parse the Markdown file using MeCab/J.DepP:
-    $ node [this-script.js] parse [markdown.md]
+    $ node [this-script.js] parse [markdown.md [...markdowns.md]]
 These will overwrite markdown.md (after creating markdown.md.bak backup).
 
 For Ebisu-related scheduling debug information:
-    $ node [this-script.js] ebisu [markdown.md]
+    $ node [this-script.js] ebisu [markdown.md [...markdowns.md]]
 `;
 
 import {fill} from './cliFillInTheBlanks';
 import {cliPrompt} from './cliPrompt';
 import {Content, Quiz, Quizzable, Predicted, SentenceBlock, textToBlocks, verifyAll, contentToString} from './markdown';
 import {Ebisu} from './ebisu';
-import {argmin, flatten} from './utils';
+import {argmin, flatten, enumerate, zip} from './utils';
 
 async function cloze(clozes: Array<string|null>): Promise<string[]> {
   let numberOfParticles = 0;
@@ -53,10 +53,16 @@ function findBestQuiz(learned: Quizzable[]) {
   let finalQuiz: Quiz|undefined;
   let finalQuizzable: Quizzable|undefined;
   let finalPrediction: Predicted|undefined;
+  let finalIndex: number|undefined;
   let predictions = learned.map(q => q.predict()).filter(x => !!x) as Predicted[];
   let minIdx = argmin(predictions, p => p.prob);
   if (minIdx >= 0) {
-    [finalQuiz, finalQuizzable, finalPrediction] = [predictions[minIdx].quiz, learned[minIdx], predictions[minIdx]];
+    [finalQuiz, finalQuizzable, finalPrediction, finalIndex] = [
+      predictions[minIdx].quiz,
+      learned[minIdx],
+      predictions[minIdx],
+      minIdx,
+    ];
     if (learned.length > 5) {
       // If enough items have been learned, let's add some randomization. We'll still ask a quiz with low
       // recall probability, but shuffling low-probability quizzes is nice to avoid quizzing in the same
@@ -65,20 +71,21 @@ function findBestQuiz(learned: Quizzable[]) {
       let maxProb = [.001, .01, .1, .2, .3, .4, .5].find(x => x > minProb);
       if (maxProb !== undefined) {
         let max = maxProb;
-        let groupPredictionsQuizzables =
-            predictions.map((p, i) => [p, learned[i]] as [Predicted, Quizzable]).filter(([p, q]) => p.prob <= max);
+        let groupPredictionsQuizzables = predictions.map((p, i) => [p, learned[i], i] as [Predicted, Quizzable, number])
+                                             .filter(([p, q]) => p.prob <= max);
         if (groupPredictionsQuizzables.length > 0) {
           let randIdx = Math.floor(Math.random() * groupPredictionsQuizzables.length);
-          [finalQuiz, finalQuizzable, finalPrediction] = [
+          [finalQuiz, finalQuizzable, finalPrediction, finalIndex] = [
             groupPredictionsQuizzables[randIdx][0].quiz,
             groupPredictionsQuizzables[randIdx][1],
             groupPredictionsQuizzables[randIdx][0],
+            groupPredictionsQuizzables[randIdx][2],
           ];
         }
       }
     }
   }
-  return {finalQuiz, finalQuizzable, finalPrediction};
+  return {finalQuiz, finalQuizzable, finalPrediction, finalIndex};
 }
 
 async function administerQuiz(finalQuiz: Quiz, finalQuizzable: Quizzable, finalPrediction: Predicted) {
@@ -127,14 +134,15 @@ async function administerQuiz(finalQuiz: Quiz, finalQuizzable: Quizzable, finalP
 
 async function quiz(content: Content[]) {
   let learned: Quizzable[] = content.filter(o => o instanceof Quizzable && o.learned()) as Quizzable[];
-  const {finalQuiz, finalQuizzable, finalPrediction} = findBestQuiz(learned);
+  const {finalQuiz, finalQuizzable, finalPrediction, finalIndex} = findBestQuiz(learned);
 
-  if (!(finalQuiz && finalQuizzable && finalPrediction)) {
+  if (!(finalQuiz && finalQuizzable && finalPrediction && typeof finalIndex === 'number')) {
     console.log('Nothing to review. Learn something and try again.')
     process.exit(0);
     return;
   }
-  return administerQuiz(finalQuiz, finalQuizzable, finalPrediction);
+  await administerQuiz(finalQuiz, finalQuizzable, finalPrediction);
+  return finalIndex;
 }
 
 if (require.main === module) {
@@ -147,10 +155,11 @@ if (require.main === module) {
       process.exit(1);
     }
     // Read file and create backup
-    const filename = process.argv[3];
-    const text = await readFile(filename, 'utf8');
-    const modifiedTime: number = (await stat(filename)).mtimeMs;
-    const writer = async (text: string) => {
+    const filenames: string[] = process.argv.slice(3);
+    const texts: string[] = await Promise.all(filenames.map(filename => readFile(filename, 'utf8')));
+    const modifiedTimes: number[] =
+        await Promise.all(filenames.map(filename => stat(filename).then((x: any) => x.mtimeMs)));
+    const writer = async (originalText: string, newText: string, filename: string, modifiedTime: number) => {
       const writeFile = promisify(require('fs').writeFile);
       const newModifiedTime: number = (await stat(filename)).mtimeMs;
       if (newModifiedTime > modifiedTime) {
@@ -160,27 +169,38 @@ if (require.main === module) {
         process.exit(1);
         return;
       }
-      return Promise.all([writeFile(filename + '.bak', text), writeFile(filename, text)]);
+      return Promise.all([writeFile(filename + '.bak', originalText), writeFile(filename, newText)]);
     };
 
-    let content: Content[] = textToBlocks(text);
-
+    let contents: Content[][] = texts.map(textToBlocks);
     // Parses Markdown and if necessary invokes MeCab/Jdepp
-    await verifyAll(content);
+    await Promise.all(contents.map(verifyAll));
 
     let mode = process.argv[2];
     if (mode === 'quiz') {
       /////////
       // Quiz
       /////////
-      quiz(content);
-      writer(contentToString(content));
+      const contentToLearned: (content: Content[]) => Quizzable[] = content =>
+          content.filter(o => o instanceof Quizzable && o.learned()) as Quizzable[];
+
+      const bestQuizzes = contents.map(content => findBestQuiz(contentToLearned(content)));
+      const fileIndex = await quiz(bestQuizzes.filter(b => !!b.finalQuizzable).map(b => b.finalQuizzable as Quizzable));
+      if (typeof fileIndex === 'undefined') {
+        throw new Error('TypeScript pacification: fileIndex will be number here')
+      }
+      writer(texts[fileIndex], contentToString(contents[fileIndex]), filenames[fileIndex], modifiedTimes[fileIndex]);
     } else if (mode === 'learn') {
       /////////
       // Learn
       /////////
-      let toLearn: Quizzable|undefined =
-          content.find(o => o instanceof Quizzable && !o.learned()) as (Quizzable | undefined);
+      let toLearn: Quizzable|undefined;
+      let fileIndex: number = -1;
+      for (const [idx, content] of enumerate(contents)) {
+        fileIndex = idx;
+        toLearn = content.find(o => o instanceof Quizzable && !o.learned()) as (Quizzable | undefined);
+        if (toLearn) { break; }
+      }
       if (!toLearn) {
         console.log('Nothing to learn!');
         process.exit(0);
@@ -202,8 +222,7 @@ if (require.main === module) {
       }
       const now = new Date();
       toLearn.learn(now, scale);
-
-      writer(contentToString(content));
+      writer(texts[fileIndex], contentToString(contents[fileIndex]), filenames[fileIndex], modifiedTimes[fileIndex]);
     } else if (mode === 'ebisu') {
       /////////
       // Ebisu
@@ -223,7 +242,7 @@ if (require.main === module) {
       }
 
       // Print
-      let learned: Quizzable[] = content.filter(o => o instanceof Quizzable && o.learned()) as Quizzable[];
+      let learned: Quizzable[] = flatten(contents).filter(o => o instanceof Quizzable && o.learned()) as Quizzable[];
       let sorted = flatten(learned.map(qz => qz.bullets.filter(b => b instanceof Quiz && !!b.ebisu)
                                                  .map(q => ({
                                                         str: qz.header + '|' + (q.toString() || '').split('\n')[0],
@@ -236,7 +255,9 @@ if (require.main === module) {
                                                 '%  hl=' + hl.toExponential(2) + 'hours  ' + str)
                       .join('\n'))
     } else if (mode === 'parse') {
-      writer(contentToString(content));
+      for (const [text, content, filename, modifiedTime] of zip(texts, contents, filenames, modifiedTimes)) {
+        writer(text, contentToString(content), filename, modifiedTime);
+      }
     } else {
       console.error('Unknown mode. See usage below.');
       console.error(USAGE);
