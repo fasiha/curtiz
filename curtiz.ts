@@ -185,7 +185,7 @@ if (require.main === module) {
           content.filter(o => o instanceof Quizzable && o.learned()) as Quizzable[];
 
       const bestQuizzes = contents.map(content => findBestQuiz(contentToLearned(content)));
-      const fileIndex = await quiz(bestQuizzes.filter(b => !!b.finalQuizzable).map(b => b.finalQuizzable as Quizzable));
+      const fileIndex = await quiz(bestQuizzes.map(b => b.finalQuizzable as Quizzable));
       if (typeof fileIndex === 'undefined') {
         throw new Error('TypeScript pacification: fileIndex will be number here')
       }
