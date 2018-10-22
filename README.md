@@ -150,6 +150,15 @@ After Curtiz processes this file, the above will have the following bullets unde
 - ◊related?? あける :: ? :: 開ける
 - ◊cloze particle を
 
+## Miscellaneous tips
+**Multiple inputs** Curtiz can handle multiple Markdown files quite well: the following will ask you to learn the first unlearned fact between A.md, B.md, and C.md (in that order), and then review the fact most in danger of being forgotten.
+```
+$ node curtiz.js learn A.md B.md C.md
+$ node curtiz.js quiz A.md B.md C.md
+```
+
+**Mild quiz randomization** To avoid quizzing facts in the same order as they were learned, Curtiz will, if sufficient numbers of facts are known, somewhat randomize the quizzes, so that the fact with the absolute lowest probability of recall *might* not be quizzed. For this very reason, repeatedly starting and exiting quizzes without answering them (e.g., via `Control-C` at the command prompt) may present different quizzes.
+
 ## Name
 The name comes from Arakawa Hiromi's legendary manga, *Fullmetal Alchemist*, where Curtis Izumi is the powerful alchemist who took in the Elric brothers and taught them alchemy. The artist, Arakawa-sensei, has said that this memorable scene featuring Curtis is her favorite scene in the manga!:
 
