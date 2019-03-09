@@ -112,7 +112,7 @@ type Bullet = string|Quiz;
 /*
 Quizzables
 */
-export abstract class Quizzable {
+export abstract class LozengeBlock {
   abstract header: string;
   abstract bullets: Bullet[];
   abstract predict(now?: Date): Predicted|undefined;
@@ -121,14 +121,14 @@ export abstract class Quizzable {
   abstract learned(): boolean;
   abstract numUnlearned(): number;
 }
-export type Content = Quizzable|string[];
+export type Content = LozengeBlock|string[];
 export type Predicted = {
   prob: number,
   quiz: Quiz,
   unlearned: number
 };
 
-export class SentenceBlock extends Quizzable {
+export class SentenceBlock extends LozengeBlock {
   header: string;
   bullets: Bullet[];
   sentence: string;
@@ -491,12 +491,52 @@ export async function verifyAll(content: Content[]) {
   return Promise.all(content.filter(c => c instanceof SentenceBlock).map(o => (o as SentenceBlock).verify()));
 }
 
+export function findBestQuiz(learned: LozengeBlock[], softRandomize: boolean = true) {
+  let finalQuiz: Quiz|undefined;
+  let finalLozengeBlock: LozengeBlock|undefined;
+  let finalPrediction: Predicted|undefined;
+  let finalIndex: number|undefined;
+  let predictions = learned.map(q => q.predict()).filter(x => !!x) as Predicted[];
+  let minIdx = argmin(predictions, p => p.prob);
+  if (minIdx >= 0) {
+    [finalQuiz, finalLozengeBlock, finalPrediction, finalIndex] = [
+      predictions[minIdx].quiz,
+      learned[minIdx],
+      predictions[minIdx],
+      minIdx,
+    ];
+    if (learned.length > 5 && softRandomize) {
+      // If enough items have been learned, let's add some randomization. We'll still ask a quiz with low
+      // recall probability, but shuffling low-probability quizzes is nice to avoid quizzing in the same
+      // order as learned.
+      let minProb = predictions[minIdx].prob;
+      let maxProb = [.001, .01, .1, .2, .3, .4, .5].find(x => x > minProb);
+      if (maxProb !== undefined) {
+        let max = maxProb;
+        let groupPredictionsQuizzables =
+            predictions.map((p, i) => [p, learned[i], i] as [Predicted, LozengeBlock, number])
+                .filter(([p, q]) => p.prob <= max);
+        if (groupPredictionsQuizzables.length > 0) {
+          let randIdx = Math.floor(Math.random() * groupPredictionsQuizzables.length);
+          [finalQuiz, finalLozengeBlock, finalPrediction, finalIndex] = [
+            groupPredictionsQuizzables[randIdx][0].quiz,
+            groupPredictionsQuizzables[randIdx][1],
+            groupPredictionsQuizzables[randIdx][0],
+            groupPredictionsQuizzables[randIdx][2],
+          ];
+        }
+      }
+    }
+  }
+  return {finalQuiz, finalQuizzable: finalLozengeBlock, finalPrediction, finalIndex};
+}
+
 /*
 Main command-line app (prints updated (parsed) Markdown)
 */
 const ensureFinalNewline = (s: string) => s.endsWith('\n') ? s : s + '\n';
 export const contentToString = (content: Content[]) =>
-    ensureFinalNewline(content.map(o => (o instanceof Quizzable ? o.toString() : o.join('\n'))).join('\n'));
+    ensureFinalNewline(content.map(o => (o instanceof LozengeBlock ? o.toString() : o.join('\n'))).join('\n'));
 
 const USAGE = `USAGE:
 $ node [this-script.js] [markdown.md]

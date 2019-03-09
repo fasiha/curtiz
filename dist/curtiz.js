@@ -58,47 +58,9 @@ function cloze(clozes) {
         return responses;
     });
 }
-function findBestQuiz(learned) {
-    let finalQuiz;
-    let finalQuizzable;
-    let finalPrediction;
-    let finalIndex;
-    let predictions = learned.map(q => q.predict()).filter(x => !!x);
-    let minIdx = utils_1.argmin(predictions, p => p.prob);
-    if (minIdx >= 0) {
-        [finalQuiz, finalQuizzable, finalPrediction, finalIndex] = [
-            predictions[minIdx].quiz,
-            learned[minIdx],
-            predictions[minIdx],
-            minIdx,
-        ];
-        if (learned.length > 5) {
-            // If enough items have been learned, let's add some randomization. We'll still ask a quiz with low
-            // recall probability, but shuffling low-probability quizzes is nice to avoid quizzing in the same
-            // order as learned.
-            let minProb = predictions[minIdx].prob;
-            let maxProb = [.001, .01, .1, .2, .3, .4, .5].find(x => x > minProb);
-            if (maxProb !== undefined) {
-                let max = maxProb;
-                let groupPredictionsQuizzables = predictions.map((p, i) => [p, learned[i], i])
-                    .filter(([p, q]) => p.prob <= max);
-                if (groupPredictionsQuizzables.length > 0) {
-                    let randIdx = Math.floor(Math.random() * groupPredictionsQuizzables.length);
-                    [finalQuiz, finalQuizzable, finalPrediction, finalIndex] = [
-                        groupPredictionsQuizzables[randIdx][0].quiz,
-                        groupPredictionsQuizzables[randIdx][1],
-                        groupPredictionsQuizzables[randIdx][0],
-                        groupPredictionsQuizzables[randIdx][2],
-                    ];
-                }
-            }
-        }
-    }
-    return { finalQuiz, finalQuizzable, finalPrediction, finalIndex };
-}
-function administerQuiz(finalQuiz, finalQuizzable, finalPrediction) {
+function administerQuiz(finalQuiz, finalLozenge, finalPrediction) {
     return __awaiter(this, void 0, void 0, function* () {
-        if (finalQuizzable instanceof markdown_1.SentenceBlock) {
+        if (finalLozenge instanceof markdown_1.SentenceBlock) {
             let contexts = [];
             let clozes = [];
             try {
@@ -108,7 +70,7 @@ function administerQuiz(finalQuiz, finalQuizzable, finalPrediction) {
             }
             catch (e) {
                 console.error('Critical error when preparing a quiz, for item:');
-                console.error(finalQuizzable.toString());
+                console.error(finalLozenge.toString());
                 process.exit(1);
                 return;
             }
@@ -117,7 +79,7 @@ function administerQuiz(finalQuiz, finalQuizzable, finalPrediction) {
             if (finalPrediction && finalPrediction.unlearned > 0) {
                 let n = finalPrediction.unlearned;
                 console.log(`Learn the following ${n} new sub-fact${n > 1 ? 's' : ''}:`);
-                let print = finalQuizzable.bullets.filter(b => b instanceof markdown_1.Quiz && !b.ebisu).map(q => q.toString()).join('\n');
+                let print = finalLozenge.bullets.filter(b => b instanceof markdown_1.Quiz && !b.ebisu).map(q => q.toString()).join('\n');
                 console.log(print);
                 let entry = yield cliPrompt_1.cliPrompt(`Enter to indicate you have learned ${n > 1 ? 'these' : 'this'},` +
                     ` or a positive number to scale the initial half-life. > `);
@@ -126,8 +88,8 @@ function administerQuiz(finalQuiz, finalQuizzable, finalPrediction) {
                 }
             }
             let now = new Date();
-            let correct = finalQuizzable.postQuiz(finalQuiz, clozes, responses, now, scale);
-            let summary = finalQuizzable.header;
+            let correct = finalLozenge.postQuiz(finalQuiz, clozes, responses, now, scale);
+            let summary = finalLozenge.header;
             summary = summary.slice(summary.indexOf(markdown_1.SentenceBlock.init) + markdown_1.SentenceBlock.init.length);
             if (correct) {
                 console.log('💥 🔥 🎆 🎇 👏 🙌 👍 👌! ' + summary);
@@ -144,8 +106,8 @@ function administerQuiz(finalQuiz, finalQuizzable, finalPrediction) {
 }
 function quiz(content) {
     return __awaiter(this, void 0, void 0, function* () {
-        let learned = content.filter(o => o instanceof markdown_1.Quizzable && o.learned());
-        const { finalQuiz, finalQuizzable, finalPrediction, finalIndex } = findBestQuiz(learned);
+        let learned = content.filter(o => o instanceof markdown_1.LozengeBlock && o.learned());
+        const { finalQuiz, finalQuizzable, finalPrediction, finalIndex } = markdown_1.findBestQuiz(learned);
         if (!(finalQuiz && finalQuizzable && finalPrediction && typeof finalIndex === 'number')) {
             console.log('Nothing to review. Learn something and try again.');
             process.exit(0);
@@ -188,8 +150,8 @@ if (require.main === module) {
                 /////////
                 // Quiz
                 /////////
-                const contentToLearned = content => content.filter(o => o instanceof markdown_1.Quizzable && o.learned());
-                const bestQuizzes = contents.map(content => findBestQuiz(contentToLearned(content)));
+                const contentToLearned = content => content.filter(o => o instanceof markdown_1.LozengeBlock && o.learned());
+                const bestQuizzes = contents.map(content => markdown_1.findBestQuiz(contentToLearned(content)));
                 const fileIndex = yield quiz(bestQuizzes.map(b => b.finalQuizzable));
                 if (typeof fileIndex === 'undefined') {
                     throw new Error('TypeScript pacification: fileIndex will be number here');
@@ -204,7 +166,7 @@ if (require.main === module) {
                 let fileIndex = -1;
                 for (const [idx, content] of utils_1.enumerate(contents)) {
                     fileIndex = idx;
-                    toLearn = content.find(o => o instanceof markdown_1.Quizzable && !o.learned());
+                    toLearn = content.find(o => o instanceof markdown_1.LozengeBlock && !o.learned());
                     if (toLearn) {
                         break;
                     }
@@ -248,7 +210,7 @@ if (require.main === module) {
                     return (res - e.lastDate.valueOf()) / 36e5;
                 }
                 // Print
-                let learned = utils_1.flatten(contents).filter(o => o instanceof markdown_1.Quizzable && o.learned());
+                let learned = utils_1.flatten(contents).filter(o => o instanceof markdown_1.LozengeBlock && o.learned());
                 let sorted = utils_1.flatten(learned.map(qz => qz.bullets.filter(b => b instanceof markdown_1.Quiz && !!b.ebisu)
                     .map(q => ({
                     str: qz.header + '|' + (q.toString() || '').split('\n')[0],
