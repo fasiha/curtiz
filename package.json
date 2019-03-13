@@ -2,7 +2,7 @@
   "name": "curtiz",
   "version": "1.0.0",
   "description": "Experimental Markdown-based persistence for Japanese flashcards and quizzes",
-  "main": "index.js",
+  "main": "dist/index.js",
   "typings": "index.ts",
   "bin": {
     "curtiz": "./dist/curtiz.js"
