@@ -151,17 +151,21 @@ var __importStar = (this && this.__importStar) || function (mod) {
     result["default"] = mod;
     return result;
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const ebisu_1 = require("./ebisu");
 const jdepp = __importStar(require("./jdepp"));
 const kana_1 = require("./kana");
 const mecabUnidic_1 = require("./mecabUnidic");
+const partitionBy_1 = __importDefault(require("./partitionBy"));
 const utils_1 = require("./utils");
 const DEFAULT_HALFLIFE_HOURS = 0.25;
 const ebisuVersion = '1';
 const ebisuInit = '- ◊Ebisu' + ebisuVersion + ' ';
 /*
-Quiz classes (within a Quizzable, defined below)
+Quiz classes (within a LozengeBlock, defined below)
 */
 class Quiz {
 }
@@ -596,50 +600,24 @@ function lineToEbisu(line) {
     return { name, ebisu };
 }
 function last(v) { return v[v.length - 1]; }
+function isLozengeBlockable(haystack, needle) {
+    const re = /^#+\s+◊/;
+    if (!re.test(haystack)) {
+        return false;
+    }
+    return haystack.slice(haystack.indexOf('◊')).startsWith(needle);
+}
 function textToBlocks(text) {
     let content = [];
-    const headerRegexp = /(#+\s+◊)/;
-    const bulletRegexp = /(\s*-\s+◊)/;
-    let headerLoopRegexp = /(\n#+\s+◊)/g;
-    let start = 0;
-    let stop = -1;
-    let hit;
-    while (start >= 0) {
-        hit = headerLoopRegexp.exec(text);
-        stop = hit ? hit.index : text.length;
-        // piece will either start with the first character of the file, or with a header-lozenge-block
-        let piece = text.slice(start, stop + 1);
-        if (piece.endsWith('\n')) {
-            piece = piece.slice(0, -1);
-        }
-        const lines = piece.split('\n');
-        let endOfBlock = lines.findIndex(s => !(s.match(headerRegexp) || s.match(bulletRegexp)));
-        // last line of file might be header-lozenge-block so:
-        if (endOfBlock < 0) {
-            endOfBlock = lines.length;
-        }
-        if (endOfBlock === 0) {
-            // no lozenge-block found: must be opening text
-            content.push(lines);
+    const re = /^#+\s+.+$/;
+    const headers = partitionBy_1.default(text.split('\n'), s => re.test(s));
+    for (const block of headers) {
+        if (isLozengeBlockable(block[0], SentenceBlock.init)) {
+            content.push(new SentenceBlock(block));
         }
         else {
-            let block = lines.slice(0, endOfBlock);
-            let restText = lines.slice(endOfBlock);
-            let line = block[0];
-            let lozengeIdx = line.indexOf('◊');
-            line = line.slice(lozengeIdx);
-            if (line.startsWith(SentenceBlock.init)) {
-                content.push(new SentenceBlock(block));
-            }
-            else {
-                throw new Error('unknown header, did you forget to add a parser for it here?');
-            }
-            if (restText.length > 0) {
-                content.push(restText);
-            }
+            content.push(block);
         }
-        start = hit ? stop + 1 : -1;
-        stop = -1;
     }
     return content;
 }
@@ -719,7 +697,7 @@ if (require.main === module) {
 }
 
 }).call(this,require('_process'))
-},{"./ebisu":1,"./jdepp":3,"./kana":4,"./mecabUnidic":6,"./utils":8,"_process":119,"fs":118,"util":127}],6:[function(require,module,exports){
+},{"./ebisu":1,"./jdepp":3,"./kana":4,"./mecabUnidic":6,"./partitionBy":7,"./utils":8,"_process":119,"fs":118,"util":127}],6:[function(require,module,exports){
 (function (process){
 "use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
