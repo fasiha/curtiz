@@ -2,14 +2,15 @@ import {Ebisu} from './ebisu';
 import * as jdepp from './jdepp';
 import {kata2hira} from './kana';
 import {goodMorphemePredicate, invokeMecab, maybeMorphemesToMorphemes, Morpheme, parseMecab} from './mecabUnidic';
-import {argmin, enumerate, fillHoles, filterRight, flatten, hasKanji} from './utils';
+import partitionBy from './partitionBy';
+import {argmin, enumerate, filterRight, flatten, hasKanji} from './utils';
 
 const DEFAULT_HALFLIFE_HOURS = 0.25;
 const ebisuVersion = '1';
 const ebisuInit: string = '- ◊Ebisu' + ebisuVersion + ' ';
 
 /*
-Quiz classes (within a Quizzable, defined below)
+Quiz classes (within a LozengeBlock, defined below)
 */
 export abstract class Quiz {
   ebisu?: Ebisu;
@@ -443,46 +444,21 @@ function lineToEbisu(line: string): {name: string, ebisu: Ebisu}|null {
 }
 function last<T>(v: T[]): T|undefined { return v[v.length - 1]; }
 
+function isLozengeBlockable(haystack: string, needle: string): boolean {
+  const re = /^#+\s+◊/;
+  if (!re.test(haystack)) { return false; }
+  return haystack.slice(haystack.indexOf('◊')).startsWith(needle);
+}
 export function textToBlocks(text: string): Content[] {
   let content: Content[] = [];
-
-  const headerRegexp = /(#+\s+◊)/;
-  const bulletRegexp = /(\s*-\s+◊)/;
-  let headerLoopRegexp = /(\n#+\s+◊)/g;
-  let start = 0;
-  let stop = -1;
-  let hit;
-  while (start >= 0) {
-    hit = headerLoopRegexp.exec(text);
-    stop = hit ? hit.index : text.length;
-
-    // piece will either start with the first character of the file, or with a header-lozenge-block
-    let piece = text.slice(start, stop + 1);
-    if (piece.endsWith('\n')) { piece = piece.slice(0, -1); }
-    const lines = piece.split('\n');
-    let endOfBlock = lines.findIndex(s => !(s.match(headerRegexp) || s.match(bulletRegexp)))
-    // last line of file might be header-lozenge-block so:
-    if (endOfBlock < 0) { endOfBlock = lines.length; }
-
-    if (endOfBlock === 0) {
-      // no lozenge-block found: must be opening text
-      content.push(lines);
+  const re = /^#+\s+.+$/;
+  const headers = partitionBy(text.split('\n'), s => re.test(s));
+  for (const block of headers) {
+    if (isLozengeBlockable(block[0], SentenceBlock.init)) {
+      content.push(new SentenceBlock(block));
     } else {
-      let block = lines.slice(0, endOfBlock);
-      let restText = lines.slice(endOfBlock);
-      let line = block[0];
-      let lozengeIdx = line.indexOf('◊');
-      line = line.slice(lozengeIdx);
-
-      if (line.startsWith(SentenceBlock.init)) {
-        content.push(new SentenceBlock(block));
-      } else {
-        throw new Error('unknown header, did you forget to add a parser for it here?');
-      }
-      if (restText.length > 0) { content.push(restText); }
+      content.push(block);
     }
-    start = hit ? stop + 1 : -1;
-    stop = -1;
   }
   return content;
 }
