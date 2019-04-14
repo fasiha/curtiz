@@ -409,7 +409,7 @@ class SentenceBlock extends LozengeBlock {
                 // add ◊related?? blocks
                 for (let morpheme of morphemes) {
                     if (utils_1.hasKanji(morpheme.literal)) {
-                        this.bullets.push(`${relatedMaybeInit}${kana_1.kata2hira(morpheme.lemmaReading)} :: ? :: ${morpheme.lemma}`);
+                        this.bullets.unshift(`${relatedMaybeInit}${kana_1.kata2hira(morpheme.lemmaReading)} :: ? :: ${morpheme.lemma}`);
                     }
                 }
             }
@@ -450,7 +450,7 @@ class SentenceBlock extends LozengeBlock {
                 if (utils_1.hasKanji(bunsetsuToString(bunsetsu))) {
                     acceptable.push(kana_1.kata2hira(bunsetsu.map(m => m.pronunciation).join('')));
                 }
-                this.bullets.push(new QuizCloze(this, acceptable));
+                this.bullets.unshift(new QuizCloze(this, acceptable));
             }
         }
     }
@@ -622,9 +622,17 @@ function textToBlocks(text) {
     return content;
 }
 exports.textToBlocks = textToBlocks;
-function verifyAll(content) {
+function verifyAll(content, concurrentLimit = 8) {
     return __awaiter(this, void 0, void 0, function* () {
-        return Promise.all(content.filter(c => c instanceof SentenceBlock).map(o => o.verify()));
+        let promises = [];
+        for (let o of content.filter(c => c instanceof SentenceBlock)) {
+            if (promises.length >= concurrentLimit) {
+                yield Promise.all(promises);
+                promises = [];
+            }
+            promises.push(o.verify());
+        }
+        return Promise.all(promises);
     });
 }
 exports.verifyAll = verifyAll;

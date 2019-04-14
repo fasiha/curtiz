@@ -260,7 +260,7 @@ export class SentenceBlock extends LozengeBlock {
         // add ◊related?? blocks
         for (let morpheme of morphemes) {
           if (hasKanji(morpheme.literal)) {
-            this.bullets.push(`${relatedMaybeInit}${kata2hira(morpheme.lemmaReading)} :: ? :: ${morpheme.lemma}`)
+            this.bullets.unshift(`${relatedMaybeInit}${kata2hira(morpheme.lemmaReading)} :: ? :: ${morpheme.lemma}`)
           }
         }
       }
@@ -302,7 +302,7 @@ export class SentenceBlock extends LozengeBlock {
         if (hasKanji(bunsetsuToString(bunsetsu))) {
           acceptable.push(kata2hira(bunsetsu.map(m => m.pronunciation).join('')))
         }
-        this.bullets.push(new QuizCloze(this, acceptable));
+        this.bullets.unshift(new QuizCloze(this, acceptable));
       }
     }
   }
@@ -463,8 +463,16 @@ export function textToBlocks(text: string): Content[] {
   return content;
 }
 
-export async function verifyAll(content: Content[]) {
-  return Promise.all(content.filter(c => c instanceof SentenceBlock).map(o => (o as SentenceBlock).verify()));
+export async function verifyAll(content: Content[], concurrentLimit: number = 8) {
+  let promises: Promise<void>[] = [];
+  for (let o of content.filter(c => c instanceof SentenceBlock)) {
+    if (promises.length >= concurrentLimit) {
+      await Promise.all(promises);
+      promises = [];
+    }
+    promises.push((o as SentenceBlock).verify());
+  }
+  return Promise.all(promises);
 }
 
 export function findBestQuiz(learned: LozengeBlock[], softRandomize: boolean = true) {
